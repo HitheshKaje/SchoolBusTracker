@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Announcements - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/tailwind.config.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 flex">
+  <!-- Layout will be injected here -->
+  <main id="main-content" class="ml-64 flex-1 min-h-screen flex flex-col">
+    
+    <div class="p-8 flex-1">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Announcements</h1>
+          <p class="text-sm text-gray-500 mt-1">Manage global school announcements.</p>
+        </div>
+        <div class="flex space-x-3">
+          <button id="addAnnouncementBtn" class="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm">Add Announcement</button>
+        </div>
+      </div>
+
+      <!-- Data Table -->
+      <div class="bg-white p-4 rounded-t-2xl border-b border-gray-100 shadow-soft flex items-center justify-between">
+        <div class="relative">
+          <input type="text" id="searchInput" placeholder="Search title..." class="pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 w-64 transition-all">
+          <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+      </div>
+      
+      <div class="bg-white rounded-b-2xl shadow-soft overflow-hidden">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-gray-50 border-b border-gray-100 text-sm text-gray-500 uppercase tracking-wider">
+              <th class="p-4 font-medium">Title</th>
+              <th class="p-4 font-medium">Audience</th>
+              <th class="p-4 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dataTableBody" class="divide-y divide-gray-100">
+            <tr><td colspan="3" class="p-8 text-center text-gray-500">Loading...</td></tr>
+          </tbody>
+        </table>
+        
+        <div class="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+          <span id="paginationInfo">Showing 0 to 0 of 0 entries</span>
+          <div class="flex space-x-1">
+            <button id="prevPageBtn" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50">Prev</button>
+            <button id="nextPageBtn" class="px-3 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50">Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="crudModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 id="modalTitle" class="text-xl font-bold text-gray-900">Add Announcement</h2>
+          <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <form id="crudForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Title</label>
+            <input type="text" name="title" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Content</label>
+            <textarea name="content" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500"></textarea>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Target Audience</label>
+            <select name="targetAudience" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+              <option value="All">All</option>
+              <option value="Parent">Parents</option>
+              <option value="Driver">Drivers</option>
+            </select>
+          </div>
+          <div class="flex justify-end space-x-3 mt-6">
+            <button type="button" id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </main>
+  <script src="/admin/layout.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      let currentPage = 1;
+      let searchQuery = '';
+
+      async function loadData() {
+        const res = await apiFetch(`/api/announcements?page=${currentPage}&limit=10&search=${searchQuery}`);
+        if (!res || !res.success) return;
+        
+        const tbody = document.getElementById('dataTableBody');
+        tbody.innerHTML = '';
+        
+        if (res.data.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="3" class="p-8 text-center text-gray-500">No announcements found.</td></tr>';
+        } else {
+          res.data.forEach(item => {
+            tbody.innerHTML += `
+              <tr class="hover:bg-gray-50/50 transition-colors">
+                <td class="p-4">
+                  <div class="text-sm font-medium text-gray-900">${item.title}</div>
+                </td>
+                <td class="p-4 text-sm text-gray-600">${item.targetAudience}</td>
+                <td class="p-4 text-right">
+                  <button onclick="openEditModal('${item._id}')" class="text-blue-600 hover:text-blue-800 text-sm font-medium mr-3">Edit</button>
+                  <button onclick="deleteItem('/api/announcements/${item._id}')" class="text-red-600 hover:text-red-800 text-sm font-medium">Delete</button>
+                </td>
+              </tr>
+            `;
+          });
+        }
+        
+        const pagination = res.pagination || { total: res.data.length, page: 1, limit: 10 };
+        document.getElementById('paginationInfo').innerText = `Showing page ${pagination.page} (Total: ${pagination.total})`;
+        document.getElementById('prevPageBtn').disabled = pagination.page === 1;
+        document.getElementById('nextPageBtn').disabled = pagination.page * pagination.limit >= pagination.total;
+      }
+
+      loadData();
+      
+      // Override deleteItem to reload local data
+      window.deleteItem = async (url) => {
+        if (!confirm('Are you sure you want to delete this item?')) return;
+        const res = await apiFetch(url, { method: 'DELETE' });
+        if (res && res.success) loadData();
+        else alert('Error deleting item');
+      };
+
+      document.getElementById('searchInput').addEventListener('input', (e) => {
+        searchQuery = e.target.value;
+        currentPage = 1;
+        loadData();
+      });
+      document.getElementById('prevPageBtn').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadData(); } });
+      document.getElementById('nextPageBtn').addEventListener('click', () => { currentPage++; loadData(); });
+
+      // Add Button
+      document.getElementById('addAnnouncementBtn').addEventListener('click', () => {
+        document.getElementById('crudModal').classList.remove('hidden');
+        document.getElementById('modalTitle').innerText = 'Add Announcement';
+      });
+
+      // Form Submit (Create/Update)
+      document.getElementById('crudForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        const editId = e.target.dataset.editId;
+        const method = editId ? 'PUT' : 'POST';
+        const url = editId ? `/api/announcements/${editId}` : '/api/announcements';
+
+        const res = await apiFetch(url, {
+          method,
+          body: JSON.stringify(data)
+        });
+
+        if (res && res.success) {
+          document.getElementById('cancelModalBtn').click();
+          loadData();
+        } else {
+          alert(res ? res.message : 'Error saving announcement');
+        }
+      });
+    });
+
+    // Global edit hook
+    window.openEditModal = async (id) => {
+      const res = await apiFetch(`/api/announcements/${id}`);
+      if (res && res.data) {
+        const form = document.getElementById('crudForm');
+        form.dataset.editId = id;
+        document.getElementById('modalTitle').innerText = 'Edit Announcement';
+        
+        Object.keys(res.data).forEach(key => {
+          const input = form.elements[key];
+          if (input) input.value = res.data[key];
+        });
+        document.getElementById('crudModal').classList.remove('hidden');
+      }
+    };
+  </script>
+</body>
+</html>

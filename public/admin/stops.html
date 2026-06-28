@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manage Stops - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/js/tailwind.config.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>body { font-family: 'Inter', sans-serif; }</style>
+</head>
+<body class="bg-gray-50 flex">
+  <main id="main-content" class="ml-64 flex-1 min-h-screen flex flex-col">
+    <div class="p-8 flex-1">
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold text-gray-900">Stop Management</h1>
+          <p class="text-sm text-gray-500 mt-1">Manage physical bus stops and mapping.</p>
+        </div>
+        <div class="flex space-x-3">
+          <button id="addStopBtn" class="px-4 py-2 bg-primary-600 text-white rounded-lg font-medium hover:bg-primary-700 transition-colors shadow-sm">Add Stop</button>
+        </div>
+      </div>
+      <div class="bg-white p-4 rounded-t-2xl border-b border-gray-100 shadow-soft flex items-center justify-between">
+        <div class="relative w-64">
+          <input type="text" id="searchInput" placeholder="Search stops..." class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-shadow">
+          <svg class="w-5 h-5 text-gray-400 absolute left-3 top-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        </div>
+      </div>
+      <div class="bg-white rounded-b-2xl shadow-soft overflow-hidden border border-t-0 border-gray-100">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stop Name</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Route</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location (Lat, Lng)</th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Arrival Time</th>
+              <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody" class="bg-white divide-y divide-gray-200"></tbody>
+        </table>
+        <div class="bg-white px-4 py-3 border-t border-gray-200 flex items-center justify-between sm:px-6">
+          <div class="text-sm text-gray-700" id="paginationInfo">Loading...</div>
+          <div class="flex space-x-2">
+            <button id="prevPageBtn" class="px-3 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50" disabled>Previous</button>
+            <button id="nextPageBtn" class="px-3 py-1 border border-gray-300 rounded text-gray-600 hover:bg-gray-50" disabled>Next</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Form -->
+    <div id="crudModal" class="hidden fixed inset-0 z-50 overflow-y-auto bg-gray-900 bg-opacity-50 flex items-center justify-center">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 id="modalTitle" class="text-xl font-bold text-gray-900">Add Stop</h2>
+          <button id="closeModalBtn" class="text-gray-400 hover:text-gray-600">&times;</button>
+        </div>
+        <form id="crudForm" class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Stop Name</label>
+            <input type="text" name="name" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Assign Route</label>
+            <select name="route" id="routeSelect" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+              <option value="">Select a Route</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Stop Order</label>
+            <input type="number" name="order" value="0" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Latitude</label>
+              <input type="number" step="0.000001" name="latitude" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Longitude</label>
+              <input type="number" step="0.000001" name="longitude" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700">Estimated Arrival Time</label>
+            <input type="time" name="arrivalTime" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+          </div>
+          <div class="flex justify-end space-x-3 mt-6">
+            <button type="button" id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
+            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </main>
+  <script src="/admin/layout.js"></script>
+  <script src="/js/admin.js"></script>
+  <script>
+    let currentPage = 1;
+    let currentSearch = '';
+
+    const columns = [
+      { key: 'name', format: (val) => `<div class="font-bold text-gray-900">${val || '-'}</div>` },
+      { key: 'route.name', format: (val) => val || 'Unassigned' },
+      { key: 'order', format: (val) => val || '0' },
+      { key: 'location', format: (val) => val && val.coordinates ? `${val.coordinates[1]}, ${val.coordinates[0]}` : 'N/A' },
+      { key: 'estimatedTime', format: (val) => val || 'N/A' }
+    ];
+
+    const loadRoutes = async () => {
+      const res = await apiFetch('/api/routes?limit=100');
+      if (res && res.data) {
+        const select = document.getElementById('routeSelect');
+        select.innerHTML = '<option value="">Select a Route</option>' + res.data.map(r => \`<option value="\${r._id}">\${r.name} (\${r.routeNumber})</option>\`).join('');
+      }
+    };
+
+    const loadData = async () => {
+      const url = \`/api/stops?page=\${currentPage}&limit=10\${currentSearch ? '&search=' + currentSearch : ''}\`;
+      const res = await apiFetch(url);
+      if (res && res.data) {
+        renderTable(res.data, columns, 'tableBody');
+        const { total, page, limit } = res.pagination;
+        document.getElementById('paginationInfo').innerText = \`Showing \${(page-1)*limit + 1} to \${Math.min(page*limit, total)} of \${total} results\`;
+        document.getElementById('prevPageBtn').disabled = page <= 1;
+        document.getElementById('nextPageBtn').disabled = page * limit >= total;
+      }
+    };
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadData();
+      loadRoutes();
+      const searchInput = document.getElementById('searchInput');
+      let timeout = null;
+      searchInput.addEventListener('input', (e) => {
+        clearTimeout(timeout);
+        timeout = setTimeout(() => { currentSearch = e.target.value; currentPage = 1; loadData(); }, 500);
+      });
+      document.getElementById('prevPageBtn').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadData(); } });
+      document.getElementById('nextPageBtn').addEventListener('click', () => { currentPage++; loadData(); });
+
+      // Add Button
+      document.getElementById('addStopBtn').addEventListener('click', () => {
+        document.getElementById('crudModal').classList.remove('hidden');
+        document.getElementById('modalTitle').innerText = 'Add Stop';
+      });
+
+      // Form Submit (Create/Update)
+      document.getElementById('crudForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target);
+        const data = Object.fromEntries(formData.entries());
+        
+        // Remove empty strings so they don't break validation if not required
+        // Latitude and Longitude are now strictly required.
+        // Route is strictly required.
+        
+        const editId = e.target.dataset.editId;
+        const method = editId ? 'PUT' : 'POST';
+        const url = editId ? \`/api/stops/\${editId}\` : '/api/stops';
+
+        const res = await apiFetch(url, {
+          method,
+          body: JSON.stringify(data)
+        });
+
+        if (res && res.success) {
+          document.getElementById('cancelModalBtn').click();
+          loadData();
+        } else {
+          alert(res ? res.message : 'Error saving stop');
+        }
+      });
+    });
+
+    // Global edit hook
+    window.openEditModal = async (id) => {
+      const res = await apiFetch(\`/api/stops/\${id}\`);
+      if (res && res.data) {
+        const form = document.getElementById('crudForm');
+        form.dataset.editId = id;
+        document.getElementById('modalTitle').innerText = 'Edit Stop';
+        
+        if (form.elements['name']) form.elements['name'].value = res.data.name || '';
+        if (form.elements['route']) form.elements['route'].value = res.data.route ? res.data.route._id : '';
+        if (form.elements['order']) form.elements['order'].value = res.data.order !== undefined ? res.data.order : 0;
+        if (form.elements['arrivalTime']) form.elements['arrivalTime'].value = res.data.estimatedTime || '';
+        
+        if (res.data.location && res.data.location.coordinates) {
+          form.elements['longitude'].value = res.data.location.coordinates[0];
+          form.elements['latitude'].value = res.data.location.coordinates[1];
+        } else {
+          form.elements['longitude'].value = '';
+          form.elements['latitude'].value = '';
+        }
+        
+        document.getElementById('crudModal').classList.remove('hidden');
+      }
+    };
+  </script>
+</body>
+</html>
