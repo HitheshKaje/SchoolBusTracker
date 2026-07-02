@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Trip History - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' } } } } }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    <div class="p-8 max-w-6xl mx-auto space-y-6">
+      <h1 class="text-3xl font-bold text-gray-900 mb-6">Trip History</h1>
+      <div id="tripsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+      <div id="emptyState" class="hidden text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <p class="text-gray-500">No completed trips found.</p>
+      </div>
+    </div>
+  </main>
+  <script src="/parent/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const response = await fetch('/api/parent-app/trips', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const data = await response.json();
+        const container = document.getElementById('tripsContainer');
+        if (data.success && data.data.length > 0) {
+          data.data.forEach(trip => {
+            container.innerHTML += `
+              <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-4">
+                  <div>
+                    <h3 class="text-lg font-bold text-gray-900">${new Date(trip.date).toLocaleDateString()}</h3>
+                    <p class="text-sm text-gray-500">Status: <span class="text-blue-600 font-medium">${trip.status}</span></p>
+                  </div>
+                </div>
+                <div class="space-y-2 text-sm text-gray-600">
+                  <div class="flex justify-between"><span>Start Time:</span> <span class="font-medium text-gray-900">${trip.startTime ? new Date(trip.startTime).toLocaleTimeString() : '-'}</span></div>
+                  <div class="flex justify-between"><span>End Time:</span> <span class="font-medium text-gray-900">${trip.endTime ? new Date(trip.endTime).toLocaleTimeString() : '-'}</span></div>
+                  <div class="flex justify-between"><span>Bus:</span> <span class="font-medium text-gray-900">${trip.bus ? trip.bus.busNumber : '-'}</span></div>
+                  <div class="flex justify-between"><span>Route:</span> <span class="font-medium text-gray-900">${trip.route ? trip.route.name : '-'}</span></div>
+                  <div class="flex justify-between"><span>Driver:</span> <span class="font-medium text-gray-900">${trip.driver && trip.driver.user ? trip.driver.user.name : '-'}</span></div>
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          document.getElementById('emptyState').classList.remove('hidden');
+        }
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>

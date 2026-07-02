@@ -119,13 +119,22 @@
           </div>
         </div>
         
-        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-center items-center p-8 text-center">
-          <div class="w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center mb-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden flex flex-col justify-center items-center p-8 text-center" id="tripContainer">
+          <div class="w-16 h-16 rounded-full bg-yellow-100 text-yellow-600 flex items-center justify-center mb-4 transition-colors" id="tripIcon">
              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
           </div>
           <h3 class="text-xl font-bold text-gray-800 mb-2">Current Trip Status</h3>
-          <p class="text-3xl font-black text-gray-900" id="tripStatus">Not Started</p>
-          <p class="text-gray-500 mt-2 text-sm">Trip management will be available soon.</p>
+          <p class="text-3xl font-black text-gray-900 transition-colors" id="tripStatus">Not Started</p>
+          
+          <div id="tripDetails" class="hidden mt-4 text-sm text-gray-500 w-full bg-gray-50 rounded-lg p-3">
+             <div class="flex justify-between mb-1"><span class="font-medium">Start Time:</span> <span id="tripStartTime">-</span></div>
+             <div class="flex justify-between"><span class="font-medium">End Time:</span> <span id="tripEndTime">-</span></div>
+          </div>
+          
+          <div id="tripActions" class="mt-6 w-full space-y-3">
+            <button id="startTripBtn" class="w-full bg-primary-600 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-primary-700 transition hidden focus:ring-4 focus:ring-primary-200">Start Trip</button>
+            <button id="endTripBtn" class="w-full bg-red-600 text-white font-bold py-3 px-4 rounded-xl shadow-md hover:bg-red-700 transition hidden focus:ring-4 focus:ring-red-200">End Trip</button>
+          </div>
         </div>
       </div>
 
@@ -163,12 +172,103 @@
           document.getElementById('infoEmail').textContent = res.profile.user.email || 'N/A';
           document.getElementById('infoLicense').textContent = res.profile.licenseNumber || 'N/A';
           document.getElementById('infoExpiry').textContent = res.profile.licenseExpiry ? new Date(res.profile.licenseExpiry).toLocaleDateString() : 'N/A';
-          document.getElementById('tripStatus').textContent = res.currentTripStatus;
+          
+          // Trip Management Logic
+          const tripStatusEl = document.getElementById('tripStatus');
+          const tripDetailsEl = document.getElementById('tripDetails');
+          const startBtn = document.getElementById('startTripBtn');
+          const endBtn = document.getElementById('endTripBtn');
+          const tripIcon = document.getElementById('tripIcon');
+          const startTimeEl = document.getElementById('tripStartTime');
+          const endTimeEl = document.getElementById('tripEndTime');
+
+          if (res.currentTripStatus === 'NO_ACTIVE_TRIP') {
+             tripStatusEl.textContent = 'Not Started';
+             if (res.profile.assignedBus && res.profile.assignedRoute) {
+                startBtn.classList.remove('hidden');
+             }
+          } else if (res.currentTripStatus === 'Running') {
+             tripStatusEl.textContent = 'Running';
+             tripStatusEl.className = 'text-3xl font-black text-green-600 transition-colors';
+             tripIcon.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-4 transition-colors';
+             tripDetailsEl.classList.remove('hidden');
+             startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
+             endBtn.classList.remove('hidden');
+             startLocationTracking();
+          }
         }
       } catch (error) {
         console.error('Error loading dashboard:', error);
       }
     });
+
+    document.getElementById('startTripBtn').addEventListener('click', async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/driver-app/trip/start', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert(data.message || 'Error starting trip');
+        }
+      } catch (e) {
+        alert('Network error');
+      }
+    });
+
+    document.getElementById('endTripBtn').addEventListener('click', async () => {
+      if(!confirm('Are you sure you want to end this trip?')) return;
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/driver-app/trip/end', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (data.success) {
+          window.location.reload();
+        } else {
+          alert(data.message || 'Error ending trip');
+        }
+      } catch (e) {
+        alert('Network error');
+      }
+    });
+
+    let watchId = null;
+    function startLocationTracking() {
+      if (navigator.geolocation) {
+        watchId = navigator.geolocation.watchPosition(async (position) => {
+          const { latitude, longitude, accuracy } = position.coords;
+          const timestamp = position.timestamp;
+          
+          try {
+            await fetch('/api/driver-app/trip/location', {
+              method: 'POST',
+              headers: { 
+                'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ latitude, longitude, accuracy, timestamp })
+            });
+          } catch(e) {
+             console.error('Location sync error', e);
+          }
+        }, (error) => {
+          console.error("GPS Error: ", error);
+        }, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        });
+      } else {
+        alert("Geolocation is not supported by this browser.");
+      }
+    }
   </script>
 </body>
 </html>

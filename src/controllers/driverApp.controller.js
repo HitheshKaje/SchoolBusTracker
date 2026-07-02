@@ -5,6 +5,8 @@ const Student = require('../models/Student');
 const Stop = require('../models/Stop');
 const Announcement = require('../models/Announcement');
 const User = require('../models/User');
+const Trip = require('../models/Trip');
+const Notification = require('../models/Notification');
 const { sendSuccess, sendError } = require('../utils/response');
 
 // Helper to get driver's own profile based on authenticated user
@@ -41,11 +43,24 @@ exports.getDashboard = async (req, res, next) => {
     const driverObj = driver.toObject();
     driverObj.assignedRoute = assignedRoute;
 
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+
+    let currentTripStatus = 'NO_ACTIVE_TRIP';
+    let tripDetails = null;
+
+    if (activeTrip) {
+      currentTripStatus = 'Running';
+      tripDetails = activeTrip;
+    }
+
     const data = {
       profile: driverObj,
       stopsCount,
       studentsCount,
-      currentTripStatus: 'Not Started' // Placeholder for future feature
+      currentTripStatus,
+      tripDetails
     };
 
     sendSuccess(res, 200, 'Driver dashboard fetched successfully', data);
@@ -136,6 +151,117 @@ exports.updateProfile = async (req, res, next) => {
     }
 
     sendSuccess(res, 200, 'Profile updated successfully', user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.startTrip = async (req, res, next) => {
+  try {
+    const driver = await getDriverProfile(req.user.id, req.user.institution);
+    if (!driver || !driver.assignedBus || !driver.assignedBus.route) {
+      return sendError(res, 400, 'Driver must have an assigned bus and route to start a trip.');
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+    if (activeTrip) {
+      return sendError(res, 400, 'A trip is already running.');
+    }
+
+    const newTrip = await Trip.create({
+      institution: req.user.institution,
+      route: driver.assignedBus.route._id,
+      bus: driver.assignedBus._id,
+      driver: driver._id,
+      date: new Date(),
+      status: 'in_progress',
+      startTime: new Date()
+    });
+
+    // Notify Admins
+    const admins = await User.find({ institution: req.user.institution, role: 'Admin' });
+    const notifications = admins.map(admin => ({
+      recipient: admin._id,
+      title: 'Trip Started',
+      body: `Driver ${driver.user.name} has started today's trip.`,
+      type: 'info'
+    }));
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    sendSuccess(res, 200, 'Trip started successfully', newTrip);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.endTrip = async (req, res, next) => {
+  try {
+    const driver = await getDriverProfile(req.user.id, req.user.institution);
+    if (!driver) return sendError(res, 404, 'Driver not found.');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+    if (!activeTrip) {
+      return sendError(res, 400, 'No active trip to end.');
+    }
+
+    activeTrip.endTime = new Date();
+    activeTrip.status = 'completed';
+    await activeTrip.save();
+
+    // Notify Admins
+    const admins = await User.find({ institution: req.user.institution, role: 'Admin' });
+    const notifications = admins.map(admin => ({
+      recipient: admin._id,
+      title: 'Trip Ended',
+      body: `Driver ${driver.user.name} has completed today's trip.`,
+      type: 'info'
+    }));
+    if (notifications.length > 0) {
+      await Notification.insertMany(notifications);
+    }
+
+    sendSuccess(res, 200, 'Trip ended successfully', activeTrip);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.updateLocation = async (req, res, next) => {
+  try {
+    const { latitude, longitude, accuracy, timestamp } = req.body;
+    
+    if (!latitude || !longitude) {
+      return sendError(res, 400, 'Latitude and longitude are required.');
+    }
+
+    const driver = await Driver.findOne({ user: req.user.id, institution: req.user.institution });
+    if (!driver) return sendError(res, 404, 'Driver not found.');
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+    
+    if (activeTrip) {
+      activeTrip.currentLocation = {
+        latitude,
+        longitude,
+        accuracy: accuracy || 0,
+        timestamp: timestamp ? new Date(timestamp) : new Date()
+      };
+      activeTrip.lastUpdated = new Date();
+      await activeTrip.save();
+    }
+
+    sendSuccess(res, 200, 'Location updated successfully');
   } catch (error) {
     next(error);
   }

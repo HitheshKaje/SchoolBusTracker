@@ -9,6 +9,13 @@ const tripSchema = new mongoose.Schema({
   status: { type: String, enum: ['scheduled', 'in_progress', 'completed', 'cancelled'], default: 'scheduled' },
   startTime: { type: Date },
   endTime: { type: Date },
+  currentLocation: {
+    latitude: { type: Number },
+    longitude: { type: Number },
+    accuracy: { type: Number },
+    timestamp: { type: Date }
+  },
+  lastUpdated: { type: Date }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Trip', tripSchema);

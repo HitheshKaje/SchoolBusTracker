@@ -41,7 +41,7 @@ exports.register = async (req, res, next) => {
 
     user = await User.create({
       name,
-      email,
+      email: email || undefined,
       mobile,
       password,
       role,

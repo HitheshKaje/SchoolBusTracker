@@ -1,16 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-  <title>Parent Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Parent Dashboard - RouteSense</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
 </head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
 
-<body class="bg-gray-50 flex items-center justify-center h-screen flex-col">
-  <h1 class="text-4xl font-bold text-gray-800 mb-4">Parent Dashboard</h1>
-  <p class="text-gray-600 mb-8">Welcome to the RouteSense Parent Panel.</p>
-  <button id="logoutBtn" class="bg-red-500 text-white px-6 py-2 rounded-lg">Logout</button>
-  <script src="/js/auth.js"></script>
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    
+    <div class="p-8 max-w-7xl mx-auto space-y-8">
+      
+      <!-- Welcome Section -->
+      <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 flex items-center justify-between">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-900 mb-2">Welcome Back, <span id="parentName" class="text-primary-600">Parent</span>! 👋</h1>
+          <p class="text-gray-500" id="institutionName">Loading institution details...</p>
+        </div>
+        <div class="hidden md:block">
+          <div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-2xl overflow-hidden" id="parentPhotoContainer">
+            <span id="parentInitial">P</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-5 gap-6">
+        
+        <!-- Total Children -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg class="w-16 h-16 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+          </div>
+          <p class="text-sm font-medium text-gray-500 mb-1">Total Children</p>
+          <h3 class="text-2xl font-bold text-gray-900" id="statChildren">0</h3>
+        </div>
+
+        <!-- Assigned Bus -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg class="w-16 h-16 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+          </div>
+          <p class="text-sm font-medium text-gray-500 mb-1">Assigned Buses</p>
+          <h3 class="text-2xl font-bold text-gray-900" id="statBus">0</h3>
+        </div>
+
+        <!-- Assigned Route -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg class="w-16 h-16 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+          </div>
+          <p class="text-sm font-medium text-gray-500 mb-1">Assigned Routes</p>
+          <h3 class="text-2xl font-bold text-gray-900" id="statRoute">0</h3>
+        </div>
+
+        <!-- Trip Status -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+            <svg class="w-16 h-16 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          </div>
+          <p class="text-sm font-medium text-gray-500 mb-1">Trip Status</p>
+          <h3 class="text-2xl font-bold text-gray-900" id="statTripStatus">None</h3>
+        </div>
+
+        <!-- Unread Notifications -->
+        <div class="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow relative overflow-hidden group">
+          <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+             <svg class="w-16 h-16 text-primary-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+          </div>
+          <p class="text-sm font-medium text-gray-500 mb-1">Notifications</p>
+          <h3 class="text-2xl font-bold text-gray-900" id="statNotifications">0</h3>
+        </div>
+      </div>
+      
+    </div>
+  </main>
+
+  <script src="/parent/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/parent-app/dashboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        if (data.success) {
+          const res = data.data;
+          
+          document.getElementById('parentName').textContent = res.profile.user.name;
+          document.getElementById('parentInitial').textContent = res.profile.user.name.charAt(0).toUpperCase();
+          if (res.profile.user.profilePhoto) {
+             document.getElementById('parentPhotoContainer').innerHTML = `<img src="${res.profile.user.profilePhoto}" class="w-full h-full object-cover">`;
+          }
+          
+          // In real app, you can pass institution name via populate or use local storage
+          const userObj = JSON.parse(localStorage.getItem('user'));
+          document.getElementById('institutionName').textContent = new Date().toLocaleDateString();
+
+          document.getElementById('statChildren').textContent = res.studentsCount;
+          document.getElementById('statBus').textContent = res.busCount;
+          document.getElementById('statRoute').textContent = res.routeCount;
+          document.getElementById('statTripStatus').textContent = res.currentTripStatus;
+          
+          const tripEl = document.getElementById('statTripStatus');
+          if (res.currentTripStatus === 'Running') {
+             tripEl.classList.add('text-green-600');
+          } else if (res.currentTripStatus === 'Completed (Today)') {
+             tripEl.classList.add('text-blue-600');
+          }
+
+          document.getElementById('statNotifications').textContent = res.unreadNotifications;
+          
+          if(res.unreadNotifications > 0) {
+             document.getElementById('statNotifications').classList.add('text-red-600');
+          }
+        }
+      } catch (error) {
+        console.error('Error loading dashboard:', error);
+      }
+    });
+  </script>
 </body>
-
 </html>

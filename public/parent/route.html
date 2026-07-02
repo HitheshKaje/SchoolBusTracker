@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Assigned Route - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: { colors: { primary: { 50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a' } } } } }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    <div class="p-8 max-w-7xl mx-auto space-y-6">
+      <h1 class="text-3xl font-bold text-gray-900 mb-6">Assigned Routes</h1>
+      <div id="routeContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+      <div id="emptyState" class="hidden text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <p class="text-gray-500">No routes assigned.</p>
+      </div>
+    </div>
+  </main>
+  <script src="/parent/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const response = await fetch('/api/parent-app/routes', { headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` } });
+        const data = await response.json();
+        const container = document.getElementById('routeContainer');
+        if (data.success && data.data.length > 0) {
+          data.data.forEach(route => {
+            container.innerHTML += `
+              <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
+                <div class="border-b border-gray-100 pb-4 mb-4">
+                  <h3 class="text-xl font-bold text-gray-900">${route.name}</h3>
+                  <p class="text-sm text-gray-500">Route No: ${route.routeNumber}</p>
+                </div>
+                <div class="space-y-3 text-sm text-gray-600">
+                  <div class="flex justify-between"><span>Total Stops:</span> <span class="font-medium text-gray-900">${route.stops ? route.stops.length : 0}</span></div>
+                  <div class="flex justify-between"><span>Status:</span> <span class="px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">${route.status || 'Active'}</span></div>
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          document.getElementById('emptyState').classList.remove('hidden');
+        }
+      } catch (e) {}
+    });
+  </script>
+</body>
+</html>

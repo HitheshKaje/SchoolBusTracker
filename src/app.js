@@ -27,6 +27,7 @@ app.use('/api/students', require('./routes/student.routes'));
 app.use('/api/parents', require('./routes/parent.routes'));
 app.use('/api/drivers', require('./routes/driver.routes'));
 app.use('/api/driver-app', require('./routes/driverApp.routes'));
+app.use('/api/parent-app', require('./routes/parentApp.routes'));
 app.use('/api/buses', require('./routes/bus.routes'));
 app.use('/api/routes', require('./routes/route.routes'));
 app.use('/api/stops', require('./routes/stop.routes'));

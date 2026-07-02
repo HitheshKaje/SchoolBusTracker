@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Children - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    <div class="p-8 max-w-7xl mx-auto space-y-6">
+      
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">My Children</h1>
+      </div>
+
+      <div id="childrenContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <!-- Dynamic Content -->
+      </div>
+      
+      <div id="emptyState" class="hidden text-center py-12 bg-white rounded-2xl shadow-sm border border-gray-100">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        <h3 class="mt-2 text-sm font-medium text-gray-900">No children assigned</h3>
+        <p class="mt-1 text-sm text-gray-500">Contact the institution admin to link your children.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/parent/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/parent-app/children', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        const container = document.getElementById('childrenContainer');
+        const emptyState = document.getElementById('emptyState');
+        
+        if (data.success && data.data.length > 0) {
+          data.data.forEach(student => {
+            const photoHtml = student.photo 
+              ? `<img src="${student.photo}" class="w-16 h-16 rounded-full object-cover border-2 border-primary-100">`
+              : `<div class="w-16 h-16 rounded-full bg-primary-100 text-primary-600 flex items-center justify-center font-bold text-xl">${student.name.charAt(0)}</div>`;
+            
+            const card = document.createElement('div');
+            card.className = 'bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex flex-col hover:shadow-md transition-shadow';
+            card.innerHTML = `
+              <div class="flex items-center space-x-4 mb-4">
+                ${photoHtml}
+                <div>
+                  <h3 class="text-xl font-bold text-gray-900">${student.name}</h3>
+                  <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    ${student.status}
+                  </span>
+                </div>
+              </div>
+              <div class="space-y-2 text-sm text-gray-600 border-t border-gray-100 pt-4 mt-auto">
+                <div class="flex justify-between"><span>Roll Number:</span> <span class="font-medium text-gray-900">${student.studentId || 'N/A'}</span></div>
+                <div class="flex justify-between"><span>Class:</span> <span class="font-medium text-gray-900">${student.grade || 'N/A'}</span></div>
+                <div class="flex justify-between"><span>Section:</span> <span class="font-medium text-gray-900">${student.section || 'N/A'}</span></div>
+                <div class="flex justify-between"><span>Admission No:</span> <span class="font-medium text-gray-900">${student.admissionNumber || 'N/A'}</span></div>
+              </div>
+            `;
+            container.appendChild(card);
+          });
+        } else {
+          emptyState.classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error loading children:', error);
+      }
+    });
+  </script>
+</body>
+</html>

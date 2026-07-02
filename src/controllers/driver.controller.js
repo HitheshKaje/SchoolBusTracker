@@ -36,7 +36,7 @@ exports.createDriver = async (req, res, next) => {
       user = await User.create({
         name,
         mobile,
-        email,
+        email: email || undefined,
         password,
         role: 'Driver',
         institution: req.user.institution
@@ -78,8 +78,11 @@ exports.updateDriver = async (req, res, next) => {
       const updateData = {};
       if (name) updateData.name = name;
       if (mobile) updateData.mobile = mobile;
-      if (email !== undefined) updateData.email = email;
-      await User.findByIdAndUpdate(driver.user, updateData);
+      if (email) updateData.email = email;
+      
+      if (Object.keys(updateData).length > 0) {
+        await User.findByIdAndUpdate(driver.user, updateData);
+      }
     }
 
     const driverUpdate = {};

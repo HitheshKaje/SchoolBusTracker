@@ -15,9 +15,11 @@ exports.getDashboardStats = async (req, res, next) => {
   try {
     const institutionId = req.user.institution; // Using institution scope if applicable, else global
     
-    // Base filter
-    const filter = institutionId ? { institution: institutionId, isDeleted: { $ne: true } } : { isDeleted: { $ne: true } };
-    const baseFilter = institutionId ? { institution: institutionId } : {};
+    const studentQuery = { isDeleted: false, institution: institutionId };
+    const parentQuery = { status: { $ne: 'inactive' }, institution: institutionId };
+    const driverQuery = { status: { $ne: 'inactive' }, institution: institutionId };
+    const busQuery = { status: { $ne: 'inactive' }, institution: institutionId };
+    const routeQuery = { status: { $ne: 'inactive' }, institution: institutionId };
 
     const [
       totalStudents,
@@ -30,14 +32,14 @@ exports.getDashboardStats = async (req, res, next) => {
       offlineDrivers,
       unreadNotifications
     ] = await Promise.all([
-      Student.countDocuments(filter),
-      Parent.countDocuments({ status: 'active' }), // Simplified for now
-      Driver.countDocuments({ status: 'active' }),
-      Bus.countDocuments(baseFilter),
-      Route.countDocuments(baseFilter),
-      Trip.countDocuments({ status: 'in_progress' }), // Simplified assumption
-      Trip.countDocuments({ status: 'completed' }),
-      Driver.countDocuments({ gpsStatus: 'offline', status: 'active' }),
+      Student.countDocuments(studentQuery),
+      Parent.countDocuments(parentQuery),
+      Driver.countDocuments(driverQuery),
+      Bus.countDocuments(busQuery),
+      Route.countDocuments(routeQuery),
+      Trip.countDocuments({ status: 'in_progress', institution: institutionId }),
+      Trip.countDocuments({ status: 'completed', institution: institutionId }),
+      Driver.countDocuments({ ...driverQuery, gpsStatus: 'offline' }),
       Notification.countDocuments({ recipient: req.user._id, readStatus: false })
     ]);
 
