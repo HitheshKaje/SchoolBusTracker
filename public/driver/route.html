@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Assigned Route - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    <div class="p-8 max-w-6xl mx-auto space-y-8">
+      
+      <div class="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+        <h1 class="text-2xl font-bold text-gray-900 mb-6 flex items-center">
+          <svg class="w-6 h-6 text-primary-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+          My Assigned Route
+        </h1>
+        
+        <div id="routeContainer" class="hidden space-y-8">
+          
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6 bg-gray-50 p-6 rounded-xl border border-gray-100">
+             <div>
+               <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Route Name</p>
+               <p class="font-bold text-gray-900" id="routeName">-</p>
+             </div>
+             <div>
+               <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Route Number</p>
+               <p class="font-bold text-gray-900" id="routeNumber">-</p>
+             </div>
+             <div>
+               <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Path</p>
+               <p class="font-bold text-gray-900 text-sm"><span id="routeSource"></span> &rarr; <span id="routeDest"></span></p>
+             </div>
+             <div>
+               <p class="text-xs text-gray-500 font-medium uppercase tracking-wider mb-1">Total Stops</p>
+               <p class="font-bold text-primary-600" id="routeStopsCount">-</p>
+             </div>
+          </div>
+
+          <div>
+             <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center">
+               <svg class="w-5 h-5 text-gray-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
+               Assigned Stops
+             </h2>
+             <div class="overflow-hidden bg-white shadow-sm ring-1 ring-black ring-opacity-5 rounded-lg border border-gray-100">
+                <table class="min-w-full divide-y divide-gray-200">
+                  <thead class="bg-gray-50">
+                    <tr>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stop Name</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Arrival</th>
+                      <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody class="bg-white divide-y divide-gray-200" id="stopsTableBody">
+                    <!-- Stops inserted here -->
+                  </tbody>
+                </table>
+             </div>
+          </div>
+
+        </div>
+
+        <div id="noRouteMessage" class="hidden text-center py-12">
+           <svg class="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+           <h3 class="text-lg font-medium text-gray-900">No Route Assigned</h3>
+           <p class="text-gray-500 mt-2">You currently do not have a route assigned to you. Please contact your administrator.</p>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <script src="/driver/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      try {
+        const response = await fetch('/api/driver-app/route', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        if (data.success && data.data) {
+          const { route, stops } = data.data;
+          document.getElementById('routeContainer').classList.remove('hidden');
+          
+          document.getElementById('routeName').textContent = route.name;
+          document.getElementById('routeNumber').textContent = route.routeNumber;
+          document.getElementById('routeSource').textContent = route.source;
+          document.getElementById('routeDest').textContent = route.destination;
+          document.getElementById('routeStopsCount').textContent = stops.length;
+          
+          const tbody = document.getElementById('stopsTableBody');
+          
+          if (stops.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No stops mapped for this route yet.</td></tr>`;
+          } else {
+            // Sort stops based on order (assuming they might have an order, or by created time, but we'll list them as returned)
+            stops.forEach((stop, idx) => {
+              const statusBadge = stop.status === 'active' 
+                ? '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">Active</span>'
+                : '<span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">Inactive</span>';
+                
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${idx + 1}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${stop.name}</td>
+                <td class="px-6 py-4 text-sm text-gray-500 truncate max-w-xs" title="${stop.locationName || 'Coords: ' + stop.location.coordinates.join(',')}">${stop.locationName || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${stop.estimatedArrivalTime || 'N/A'}</td>
+                <td class="px-6 py-4 whitespace-nowrap">${statusBadge}</td>
+              `;
+              tbody.appendChild(tr);
+            });
+          }
+
+        } else {
+          document.getElementById('noRouteMessage').classList.remove('hidden');
+        }
+      } catch (error) {
+        console.error('Error fetching assigned route:', error);
+      }
+    });
+  </script>
+</body>
+</html>

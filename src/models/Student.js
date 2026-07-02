@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const childSchema = new mongoose.Schema({
+const studentSchema = new mongoose.Schema({
   name: { type: String, required: true },
   studentId: { type: String, required: true },
   admissionNumber: { type: String, unique: true, sparse: true },
@@ -19,4 +19,4 @@ const childSchema = new mongoose.Schema({
   isDeleted: { type: Boolean, default: false }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Child', childSchema);
+module.exports = mongoose.model('Student', studentSchema);

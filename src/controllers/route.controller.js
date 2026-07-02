@@ -66,12 +66,9 @@ exports.updateRoute = async (req, res, next) => {
 
 exports.deleteRoute = async (req, res, next) => {
   try {
-    const route = await Route.findOneAndUpdate(
-      { _id: req.params.id, institution: req.user.institution },
-      { status: 'inactive' }
-    );
+    const route = await Route.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
     if (!route) return sendError(res, 404, 'Route not found');
-    sendSuccess(res, 200, 'Route deleted (inactive)');
+    sendSuccess(res, 200, 'Route deleted successfully');
   } catch (error) {
     next(error);
   }

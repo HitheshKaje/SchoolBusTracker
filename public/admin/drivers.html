@@ -74,6 +74,16 @@
             <label class="block text-sm font-medium text-gray-700">License Expiry</label>
             <input type="date" name="licenseExpiry" required class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
           </div>
+          <div id="passwordFields" class="space-y-4">
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Temporary Password</label>
+              <input type="password" name="password" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            </div>
+            <div>
+              <label class="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <input type="password" name="confirmPassword" class="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-primary-500 focus:border-primary-500">
+            </div>
+          </div>
           <div class="flex justify-end space-x-3 mt-6">
             <button type="button" id="cancelModalBtn" class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">Cancel</button>
             <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700">Save</button>
@@ -121,6 +131,11 @@
 
       // Add Button
       document.getElementById('addDriverBtn').addEventListener('click', () => {
+        document.getElementById('crudForm').reset();
+        delete document.getElementById('crudForm').dataset.editId;
+        document.getElementById('passwordFields').classList.remove('hidden');
+        document.getElementById('crudForm').elements['password'].required = true;
+        document.getElementById('crudForm').elements['confirmPassword'].required = true;
         document.getElementById('crudModal').classList.remove('hidden');
         document.getElementById('modalTitle').innerText = 'Add Driver';
       });
@@ -131,6 +146,14 @@
         const formData = new FormData(e.target);
         const data = Object.fromEntries(formData.entries());
         const editId = e.target.dataset.editId;
+        
+        if (!editId) {
+          if (data.password !== data.confirmPassword) {
+            alert('Passwords do not match');
+            return;
+          }
+        }
+        
         const method = editId ? 'PUT' : 'POST';
         const url = editId ? `/api/drivers/${editId}` : '/api/drivers';
 
@@ -156,6 +179,10 @@
         form.dataset.editId = id;
         document.getElementById('modalTitle').innerText = 'Edit Driver';
         
+        document.getElementById('passwordFields').classList.add('hidden');
+        document.getElementById('crudForm').elements['password'].required = false;
+        document.getElementById('crudForm').elements['confirmPassword'].required = false;
+
         // Populate nested user fields
         if(res.data.user) {
           if (form.elements['name']) form.elements['name'].value = res.data.user.name || '';

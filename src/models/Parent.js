@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const parentSchema = new mongoose.Schema({
   user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   institution: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', required: true },
-  children: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Child' }],
+  students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Student' }],
   address: { type: String },
   emergencyContact: { type: String },
   countryCode: { type: String, default: '+1' },

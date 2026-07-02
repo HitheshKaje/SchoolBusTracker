@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const attendanceSchema = new mongoose.Schema({
   institution: { type: mongoose.Schema.Types.ObjectId, ref: 'Institution', required: true },
   trip: { type: mongoose.Schema.Types.ObjectId, ref: 'Trip', required: true },
-  child: { type: mongoose.Schema.Types.ObjectId, ref: 'Child', required: true },
+  student: { type: mongoose.Schema.Types.ObjectId, ref: 'Student', required: true },
   status: { type: String, enum: ['present', 'absent', 'picked_up', 'dropped_off'], required: true },
   timestamp: { type: Date, default: Date.now },
   location: {

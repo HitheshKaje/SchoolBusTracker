@@ -8,7 +8,7 @@ exports.getParents = async (req, res, next) => {
   try {
     const baseQuery = { status: { $ne: 'inactive' }, institution: req.user.institution };
     
-    let features = new ApiFeatures(Parent.find(baseQuery).populate('user children'), req.query)
+    let features = new ApiFeatures(Parent.find(baseQuery).populate('user students'), req.query)
       .filter()
       .paginate();
       
@@ -33,16 +33,19 @@ exports.getParents = async (req, res, next) => {
 
 exports.createParent = async (req, res, next) => {
   try {
-    const { name, mobile, email, address, emergencyContact, countryCode } = req.body;
+    const { name, mobile, email, address, emergencyContact, countryCode, password } = req.body;
     
     // Check if user exists
     let user = await User.findOne({ mobile });
     if (!user) {
+      if (!password) {
+         return sendError(res, 400, 'Password is required to create a new user');
+      }
       user = await User.create({
         name,
         mobile,
         email,
-        password: 'Password123', // Default password
+        password,
         role: 'Parent',
         institution: req.user.institution
       });
@@ -68,7 +71,7 @@ exports.createParent = async (req, res, next) => {
 exports.getParent = async (req, res, next) => {
   try {
     const parent = await Parent.findOne({ _id: req.params.id, institution: req.user.institution })
-      .populate('user children');
+      .populate('user students');
     if (!parent) return sendError(res, 404, 'Parent not found');
     sendSuccess(res, 200, 'Parent fetched successfully', parent);
   } catch (error) {
@@ -104,12 +107,16 @@ exports.updateParent = async (req, res, next) => {
 
 exports.deleteParent = async (req, res, next) => {
   try {
-    const parent = await Parent.findOneAndUpdate(
-      { _id: req.params.id, institution: req.user.institution },
-      { status: 'inactive' }
-    );
+    const parent = await Parent.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
     if (!parent) return sendError(res, 404, 'Parent not found');
-    sendSuccess(res, 200, 'Parent marked as inactive');
+    
+    // Also delete the associated User to fully remove the parent
+    if (parent.user) {
+      const User = require('../models/User');
+      await User.findByIdAndDelete(parent.user);
+    }
+    
+    sendSuccess(res, 200, 'Parent deleted successfully');
   } catch (error) {
     next(error);
   }

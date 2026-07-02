@@ -26,15 +26,18 @@ exports.getDrivers = async (req, res, next) => {
 
 exports.createDriver = async (req, res, next) => {
   try {
-    const { name, mobile, email, licenseNumber, licenseExpiry, experience } = req.body;
+    const { name, mobile, email, licenseNumber, licenseExpiry, experience, password } = req.body;
     
     let user = await User.findOne({ mobile });
     if (!user) {
+      if (!password) {
+        return sendError(res, 400, 'Password is required to create a new driver');
+      }
       user = await User.create({
         name,
         mobile,
         email,
-        password: 'DriverPassword123',
+        password,
         role: 'Driver',
         institution: req.user.institution
       });
@@ -93,12 +96,16 @@ exports.updateDriver = async (req, res, next) => {
 
 exports.deleteDriver = async (req, res, next) => {
   try {
-    const driver = await Driver.findOneAndUpdate(
-      { _id: req.params.id, institution: req.user.institution },
-      { status: 'inactive' }
-    );
+    const driver = await Driver.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
     if (!driver) return sendError(res, 404, 'Driver not found');
-    sendSuccess(res, 200, 'Driver deleted (inactive)');
+    
+    // Also delete the associated User to fully remove the driver
+    if (driver.user) {
+      const User = require('../models/User');
+      await User.findByIdAndDelete(driver.user);
+    }
+    
+    sendSuccess(res, 200, 'Driver deleted successfully');
   } catch (error) {
     next(error);
   }

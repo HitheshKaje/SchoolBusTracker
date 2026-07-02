@@ -18,6 +18,10 @@ exports.register = async (req, res, next) => {
   try {
     const { name, email, mobile, password, role } = req.body;
 
+    if (role !== 'Admin') {
+      return sendError(res, 403, 'Self-registration is only allowed for Organization Administrators.');
+    }
+
     // Check if user exists
     let user = await User.findOne({ mobile });
     if (user) {
@@ -65,7 +69,7 @@ exports.register = async (req, res, next) => {
 // @access  Public
 exports.login = async (req, res, next) => {
   try {
-    const { mobile, password } = req.body;
+    const { mobile, password, loginType } = req.body;
 
     if (!mobile || !password) {
       return sendError(res, 400, 'Please provide mobile and password');
@@ -79,6 +83,16 @@ exports.login = async (req, res, next) => {
     const isMatch = await user.matchPassword(password);
     if (!isMatch) {
       return sendError(res, 401, 'Invalid credentials');
+    }
+
+    const type = loginType || 'user';
+
+    if (type === 'org' && user.role !== 'Admin') {
+      return sendError(res, 403, 'This account is not an Organization Administrator. Please use the Parent/Driver Login.');
+    }
+
+    if (type === 'user' && user.role === 'Admin') {
+      return sendError(res, 403, 'Organization Administrators must use the Organization Login.');
     }
 
     const token = generateToken(user._id);

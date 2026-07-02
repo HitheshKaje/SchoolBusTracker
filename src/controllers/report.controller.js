@@ -1,12 +1,12 @@
 const exceljs = require('exceljs');
 const PDFDocument = require('pdfkit');
-const Child = require('../models/Child');
+const Student = require('../models/Student');
 const Attendance = require('../models/Attendance');
 
 // Generalized Excel export for Students (example)
 exports.exportStudentsExcel = async (req, res, next) => {
   try {
-    const students = await Child.find({ institution: req.user.institution, isDeleted: false })
+    const students = await Student.find({ institution: req.user.institution, isDeleted: false })
       .populate('assignedBus assignedRoute');
 
     const workbook = new exceljs.Workbook();
@@ -47,7 +47,7 @@ exports.exportStudentsExcel = async (req, res, next) => {
 // Generalized PDF export for Students (example)
 exports.exportStudentsPDF = async (req, res, next) => {
   try {
-    const students = await Child.find({ institution: req.user.institution, isDeleted: false });
+    const students = await Student.find({ institution: req.user.institution, isDeleted: false });
 
     const doc = new PDFDocument();
     let filename = 'students_report.pdf';

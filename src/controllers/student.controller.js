@@ -1,4 +1,4 @@
-const Child = require('../models/Child');
+const Student = require('../models/Student');
 const ApiFeatures = require('../utils/apiFeatures');
 const { sendSuccess, sendError } = require('../utils/response');
 
@@ -6,14 +6,14 @@ exports.getStudents = async (req, res, next) => {
   try {
     const baseQuery = { isDeleted: false, institution: req.user.institution };
     
-    let features = new ApiFeatures(Child.find(baseQuery).populate('parents assignedBus assignedRoute pickupStop dropoffStop'), req.query)
+    let features = new ApiFeatures(Student.find(baseQuery).populate('parents assignedBus assignedRoute pickupStop dropoffStop'), req.query)
       .filter()
       .search(['name', 'admissionNumber', 'studentId'])
       .sort()
       .paginate();
 
     features.searchFields = ['name', 'admissionNumber', 'studentId'];
-    await features.countTotal(Child, baseQuery);
+    await features.countTotal(Student, baseQuery);
 
     const students = await features.query;
 
@@ -34,7 +34,7 @@ exports.getStudents = async (req, res, next) => {
 
 exports.getStudent = async (req, res, next) => {
   try {
-    const student = await Child.findOne({ _id: req.params.id, isDeleted: false, institution: req.user.institution })
+    const student = await Student.findOne({ _id: req.params.id, isDeleted: false, institution: req.user.institution })
       .populate('parents assignedBus assignedRoute pickupStop dropoffStop');
       
     if (!student) return sendError(res, 404, 'Student not found');
@@ -46,10 +46,10 @@ exports.getStudent = async (req, res, next) => {
 
 exports.createStudent = async (req, res, next) => {
   try {
-    const existing = await Child.findOne({ admissionNumber: req.body.admissionNumber });
+    const existing = await Student.findOne({ admissionNumber: req.body.admissionNumber });
     if (existing) return sendError(res, 400, 'Student with this admission number already exists');
 
-    const student = await Child.create({
+    const student = await Student.create({
       ...req.body,
       institution: req.user.institution
     });
@@ -61,7 +61,7 @@ exports.createStudent = async (req, res, next) => {
 
 exports.updateStudent = async (req, res, next) => {
   try {
-    const student = await Child.findOneAndUpdate(
+    const student = await Student.findOneAndUpdate(
       { _id: req.params.id, isDeleted: false, institution: req.user.institution },
       req.body,
       { new: true, runValidators: true }
@@ -75,12 +75,7 @@ exports.updateStudent = async (req, res, next) => {
 
 exports.deleteStudent = async (req, res, next) => {
   try {
-    // Soft Delete
-    const student = await Child.findOneAndUpdate(
-      { _id: req.params.id, institution: req.user.institution },
-      { isDeleted: true },
-      { new: true }
-    );
+    const student = await Student.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
     if (!student) return sendError(res, 404, 'Student not found');
     sendSuccess(res, 200, 'Student deleted successfully');
   } catch (error) {

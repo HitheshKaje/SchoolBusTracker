@@ -77,6 +77,22 @@ if (registerForm) {
 // Login Form
 const loginForm = document.getElementById('loginForm');
 if (loginForm) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const type = urlParams.get('type') || 'user';
+  
+  const loginTitle = document.getElementById('loginTitle');
+  const loginSubtitle = document.getElementById('loginSubtitle');
+  
+  if (loginTitle && loginSubtitle) {
+    if (type === 'org') {
+      loginTitle.textContent = 'Organization Login';
+      loginSubtitle.innerHTML = 'Or <a href="/register.html" class="font-medium text-primary-600 hover:text-primary-500 transition-colors">create a new organization account</a>';
+    } else {
+      loginTitle.textContent = 'Parent / Driver Login';
+      loginSubtitle.innerHTML = 'Organization Administrators must use the <a href="/login.html?type=org" class="font-medium text-primary-600 hover:text-primary-500 transition-colors">Organization Login</a>.';
+    }
+  }
+
   loginForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('loginBtn');
@@ -85,6 +101,7 @@ if (loginForm) {
 
     const formData = new FormData(loginForm);
     const body = Object.fromEntries(formData.entries());
+    body.loginType = type;
 
     const { status, data } = await apiCall('/login', 'POST', body);
     

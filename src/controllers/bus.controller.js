@@ -66,12 +66,9 @@ exports.updateBus = async (req, res, next) => {
 
 exports.deleteBus = async (req, res, next) => {
   try {
-    const bus = await Bus.findOneAndUpdate(
-      { _id: req.params.id, institution: req.user.institution },
-      { status: 'inactive' }
-    );
+    const bus = await Bus.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
     if (!bus) return sendError(res, 404, 'Bus not found');
-    sendSuccess(res, 200, 'Bus deleted (inactive)');
+    sendSuccess(res, 200, 'Bus deleted successfully');
   } catch (error) {
     next(error);
   }

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Profile - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+  <main id="main-content" class="flex-1 ml-64 h-screen overflow-y-auto">
+    <div class="p-8 max-w-4xl mx-auto space-y-8">
+      
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div class="p-8 border-b border-gray-100 bg-gray-50/50 flex flex-col md:flex-row items-center gap-6">
+          <div class="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold text-4xl shadow-inner border-4 border-white overflow-hidden" id="profilePhotoContainer">
+            <span id="profileInitial">D</span>
+          </div>
+          <div class="text-center md:text-left">
+            <h1 class="text-3xl font-bold text-gray-900" id="profileName">Driver Name</h1>
+            <p class="text-gray-500 mt-1">Driver Profile</p>
+          </div>
+        </div>
+
+        <div class="p-8">
+          <div id="formMessage" class="hidden mb-6"></div>
+
+          <form id="profileForm" class="space-y-6">
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <!-- Editable -->
+              <div class="space-y-4">
+                <h3 class="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2 mb-4">Editable Information</h3>
+                
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                  <input type="email" id="email" name="email" class="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors text-sm">
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">Profile Photo URL (Optional)</label>
+                  <input type="url" id="profilePhoto" name="profilePhoto" class="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors text-sm" placeholder="https://example.com/photo.jpg">
+                </div>
+
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">New Password (Leave blank to keep current)</label>
+                  <input type="password" id="password" name="password" class="w-full px-4 py-2 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition-colors text-sm">
+                </div>
+
+                <div class="pt-4">
+                  <button type="submit" id="saveBtn" class="bg-primary-600 hover:bg-primary-700 text-white font-medium py-2 px-6 rounded-lg transition-colors focus:ring-4 focus:ring-primary-200">
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+
+              <!-- Read Only -->
+              <div class="space-y-4 bg-gray-50 p-6 rounded-xl border border-gray-100">
+                <h3 class="text-lg font-bold text-gray-900 border-b border-gray-200 pb-2 mb-4">Official Records (Read Only)</h3>
+                
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Mobile Number</label>
+                  <p class="mt-1 font-medium text-gray-900" id="roMobile">-</p>
+                </div>
+                
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">License Number</label>
+                  <p class="mt-1 font-medium text-gray-900" id="roLicense">-</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">License Expiry</label>
+                  <p class="mt-1 font-medium text-gray-900" id="roExpiry">-</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned Bus</label>
+                  <p class="mt-1 font-medium text-gray-900" id="roBus">-</p>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide">Assigned Route</label>
+                  <p class="mt-1 font-medium text-gray-900" id="roRoute">-</p>
+                </div>
+              </div>
+
+            </div>
+          </form>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="/driver/layout.js"></script>
+  <script>
+    const showMessage = (message, isError = false) => {
+      const el = document.getElementById('formMessage');
+      el.textContent = message;
+      el.className = `mb-6 p-4 rounded-lg text-sm font-medium ${isError ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`;
+      el.classList.remove('hidden');
+    };
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      const token = localStorage.getItem('token');
+      
+      // Load Data
+      try {
+        const response = await fetch('/api/driver-app/dashboard', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+          const res = data.data.profile;
+          
+          document.getElementById('profileName').textContent = res.user.name;
+          document.getElementById('profileInitial').textContent = res.user.name.charAt(0).toUpperCase();
+          if (res.user.profilePhoto) {
+             document.getElementById('profilePhotoContainer').innerHTML = `<img src="${res.user.profilePhoto}" class="w-full h-full object-cover">`;
+          }
+
+          // Editable Fields
+          document.getElementById('email').value = res.user.email || '';
+          document.getElementById('profilePhoto').value = res.user.profilePhoto || '';
+
+          // Read Only Fields
+          document.getElementById('roMobile').textContent = res.user.mobile || 'N/A';
+          document.getElementById('roLicense').textContent = res.licenseNumber || 'N/A';
+          document.getElementById('roExpiry').textContent = res.licenseExpiry ? new Date(res.licenseExpiry).toLocaleDateString() : 'N/A';
+          document.getElementById('roBus').textContent = res.assignedBus ? res.assignedBus.busNumber : 'Not Assigned';
+          document.getElementById('roRoute').textContent = res.assignedRoute ? res.assignedRoute.name : 'Not Assigned';
+        }
+      } catch (error) {
+        console.error('Error loading profile:', error);
+      }
+
+      // Handle Submit
+      document.getElementById('profileForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('saveBtn');
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        const email = document.getElementById('email').value;
+        const profilePhoto = document.getElementById('profilePhoto').value;
+        const password = document.getElementById('password').value;
+
+        const body = {};
+        if (email) body.email = email;
+        if (profilePhoto) body.profilePhoto = profilePhoto;
+        if (password) body.password = password;
+
+        try {
+          const updateRes = await fetch('/api/driver-app/profile', {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(body)
+          });
+          const updateData = await updateRes.json();
+          
+          if (updateData.success) {
+            showMessage('Profile updated successfully!');
+            document.getElementById('password').value = ''; // clear password field
+            
+            // Update localstorage user name if needed (though name isn't editable here, photo is)
+            const user = JSON.parse(localStorage.getItem('user'));
+            user.profilePhoto = updateData.data.profilePhoto;
+            localStorage.setItem('user', JSON.stringify(user));
+            
+            if (user.profilePhoto) {
+               document.getElementById('profilePhotoContainer').innerHTML = `<img src="${user.profilePhoto}" class="w-full h-full object-cover">`;
+            }
+          } else {
+            showMessage(updateData.message || 'Update failed', true);
+          }
+        } catch (error) {
+          showMessage('Network error occurred', true);
+        } finally {
+          btn.disabled = false;
+          btn.textContent = 'Save Changes';
+        }
+      });
+    });
+  </script>
+</body>
+</html>

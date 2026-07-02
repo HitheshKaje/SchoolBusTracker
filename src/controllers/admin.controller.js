@@ -1,4 +1,4 @@
-const Child = require('../models/Child');
+const Student = require('../models/Student');
 const Parent = require('../models/Parent');
 const Driver = require('../models/Driver');
 const Bus = require('../models/Bus');
@@ -30,7 +30,7 @@ exports.getDashboardStats = async (req, res, next) => {
       offlineDrivers,
       unreadNotifications
     ] = await Promise.all([
-      Child.countDocuments(filter),
+      Student.countDocuments(filter),
       Parent.countDocuments({ status: 'active' }), // Simplified for now
       Driver.countDocuments({ status: 'active' }),
       Bus.countDocuments(baseFilter),
@@ -84,9 +84,14 @@ exports.assignResources = async (req, res, next) => {
         const driver = await Driver.findOne({ _id: sourceId, institution: req.user.institution });
         if (!driver) return sendError(res, 404, 'Driver not found');
         
-        // Prevent duplicate assigning
-        if (driver.assignedBus && driver.assignedBus.toString() === targetId) {
-          return sendError(res, 400, 'Driver is already assigned to this bus');
+        if (driver.assignedBus) {
+          return sendError(res, 400, 'This driver is already assigned to a bus. Unassign first.');
+        }
+
+        const targetBusForDriver = await Bus.findOne({ _id: targetId, institution: req.user.institution });
+        if (!targetBusForDriver) return sendError(res, 404, 'Bus not found');
+        if (targetBusForDriver.driver) {
+          return sendError(res, 400, 'This bus already has a driver assigned. Unassign first.');
         }
 
         driver.assignedBus = targetId;
@@ -99,8 +104,14 @@ exports.assignResources = async (req, res, next) => {
         const bus = await Bus.findOne({ _id: sourceId, institution: req.user.institution });
         if (!bus) return sendError(res, 404, 'Bus not found');
         
-        if (bus.route && bus.route.toString() === targetId) {
-          return sendError(res, 400, 'Bus is already assigned to this route');
+        if (bus.route) {
+          return sendError(res, 400, 'This bus is already assigned to a route. Unassign first.');
+        }
+
+        const targetRoute = await Route.findOne({ _id: targetId, institution: req.user.institution });
+        if (!targetRoute) return sendError(res, 404, 'Route not found');
+        if (targetRoute.bus) {
+          return sendError(res, 400, 'This route already has a bus assigned. Unassign first.');
         }
 
         bus.route = targetId;
@@ -110,16 +121,39 @@ exports.assignResources = async (req, res, next) => {
         break;
 
       case 'studentToBus':
-        await Child.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedBus: targetId });
+        const student = await Student.findOne({ _id: sourceId, institution: req.user.institution, isDeleted: false });
+        if (!student) return sendError(res, 404, 'Student not found');
+        if (student.assignedBus) {
+          return sendError(res, 400, 'This student is already assigned to a bus. Unassign first.');
+        }
+
+        const targetBusForStudent = await Bus.findOne({ _id: targetId, institution: req.user.institution });
+        if (!targetBusForStudent) return sendError(res, 404, 'Bus not found');
+        
+        const currentStudentsCount = await Student.countDocuments({ assignedBus: targetId, institution: req.user.institution, isDeleted: false });
+        if (currentStudentsCount >= targetBusForStudent.capacity) {
+          return sendError(res, 400, `Cannot assign student. Bus capacity (${targetBusForStudent.capacity}) has been reached.`);
+        }
+
+        await Student.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedBus: targetId });
         break;
 
       case 'studentToRoute':
-        await Child.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedRoute: targetId });
+        await Student.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedRoute: targetId });
         break;
 
       case 'parentToStudent':
-        await Parent.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { $addToSet: { children: targetId } });
-        await Child.findOneAndUpdate({ _id: targetId, institution: req.user.institution }, { $addToSet: { parents: sourceId } });
+        const studentForParent = await Student.findOne({ _id: targetId, institution: req.user.institution, isDeleted: false });
+        if (!studentForParent) return sendError(res, 404, 'Student not found');
+        if (studentForParent.parents && studentForParent.parents.length > 0) {
+          return sendError(res, 400, 'This student is already assigned to a parent. Unassign first.');
+        }
+
+        const parent = await Parent.findOne({ _id: sourceId, institution: req.user.institution });
+        if (!parent) return sendError(res, 404, 'Parent not found');
+
+        await Parent.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { $addToSet: { students: targetId } });
+        await Student.findOneAndUpdate({ _id: targetId, institution: req.user.institution }, { $addToSet: { parents: sourceId } });
         break;
 
       default:
@@ -171,7 +205,7 @@ exports.getAssignments = async (req, res, next) => {
     });
 
     // Student to Bus
-    const studentBuses = await Child.find({ institution, assignedBus: { $ne: null } }).populate('assignedBus');
+    const studentBuses = await Student.find({ institution, assignedBus: { $ne: null } }).populate('assignedBus');
     studentBuses.forEach(s => {
       if (s.assignedBus) {
         assignments.push({
@@ -186,10 +220,10 @@ exports.getAssignments = async (req, res, next) => {
     });
 
     // Parent to Student
-    const parents = await Parent.find({ institution, 'children.0': { $exists: true } }).populate('user children');
+    const parents = await Parent.find({ institution, 'students.0': { $exists: true } }).populate('user students');
     parents.forEach(p => {
-      if (p.user && p.children) {
-        p.children.forEach(c => {
+      if (p.user && p.students) {
+        p.students.forEach(c => {
           assignments.push({
             type: 'parentToStudent',
             sourceId: p._id,
@@ -237,16 +271,16 @@ exports.unassignResources = async (req, res, next) => {
         break;
 
       case 'studentToBus':
-        await Child.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedBus: null });
+        await Student.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedBus: null });
         break;
 
       case 'studentToRoute':
-        await Child.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedRoute: null });
+        await Student.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { assignedRoute: null });
         break;
 
       case 'parentToStudent':
-        await Parent.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { $pull: { children: targetId } });
-        await Child.findOneAndUpdate({ _id: targetId, institution: req.user.institution }, { $pull: { parents: sourceId } });
+        await Parent.findOneAndUpdate({ _id: sourceId, institution: req.user.institution }, { $pull: { students: targetId } });
+        await Student.findOneAndUpdate({ _id: targetId, institution: req.user.institution }, { $pull: { parents: sourceId } });
         break;
 
       default:
