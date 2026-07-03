@@ -182,19 +182,46 @@
           const startTimeEl = document.getElementById('tripStartTime');
           const endTimeEl = document.getElementById('tripEndTime');
 
-          if (res.currentTripStatus === 'NO_ACTIVE_TRIP') {
-             tripStatusEl.textContent = 'Not Started';
+          if (res.currentTripStatus === 'NO_MORNING_TRIP') {
+             tripStatusEl.textContent = 'No Morning Trip';
              if (res.profile.assignedBus && res.profile.assignedRoute) {
+                startBtn.textContent = 'Start Morning Trip';
                 startBtn.classList.remove('hidden');
              }
-          } else if (res.currentTripStatus === 'Running') {
-             tripStatusEl.textContent = 'Running';
+          } else if (res.currentTripStatus === 'MORNING_RUNNING') {
+             tripStatusEl.textContent = 'Morning Trip In Progress';
              tripStatusEl.className = 'text-3xl font-black text-green-600 transition-colors';
              tripIcon.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-4 transition-colors';
              tripDetailsEl.classList.remove('hidden');
              startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
              endBtn.classList.remove('hidden');
              startLocationTracking();
+          } else if (res.currentTripStatus === 'NO_EVENING_TRIP') {
+             tripStatusEl.textContent = 'Morning Trip Completed';
+             tripStatusEl.className = 'text-3xl font-black text-blue-600 transition-colors';
+             tripIcon.className = 'w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4 transition-colors';
+             tripDetailsEl.classList.remove('hidden');
+             startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
+             endTimeEl.textContent = res.tripDetails.endTime ? new Date(res.tripDetails.endTime).toLocaleTimeString() : '-';
+             if (res.profile.assignedBus && res.profile.assignedRoute) {
+                startBtn.textContent = 'Start Evening Trip';
+                startBtn.classList.remove('hidden');
+             }
+          } else if (res.currentTripStatus === 'EVENING_RUNNING') {
+             tripStatusEl.textContent = 'Evening Trip In Progress';
+             tripStatusEl.className = 'text-3xl font-black text-green-600 transition-colors';
+             tripIcon.className = 'w-16 h-16 rounded-full bg-green-100 text-green-600 flex items-center justify-center mb-4 transition-colors';
+             tripDetailsEl.classList.remove('hidden');
+             startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
+             endBtn.classList.remove('hidden');
+             startLocationTracking();
+          } else if (res.currentTripStatus === 'ALL_COMPLETED') {
+             tripStatusEl.textContent = 'All trips for today are completed.';
+             tripStatusEl.className = 'text-2xl font-black text-blue-600 transition-colors';
+             tripIcon.className = 'w-16 h-16 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mb-4 transition-colors';
+             tripDetailsEl.classList.remove('hidden');
+             startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
+             endTimeEl.textContent = res.tripDetails.endTime ? new Date(res.tripDetails.endTime).toLocaleTimeString() : '-';
           }
         }
       } catch (error) {
@@ -230,6 +257,7 @@
         });
         const data = await response.json();
         if (data.success) {
+          if (typeof stopLocationTracking === 'function') stopLocationTracking();
           window.location.reload();
         } else {
           alert(data.message || 'Error ending trip');
@@ -239,35 +267,40 @@
       }
     });
 
+    let locationInterval = null;
     let watchId = null;
+    let currentPos = null;
+
     function startLocationTracking() {
       if (navigator.geolocation) {
-        watchId = navigator.geolocation.watchPosition(async (position) => {
-          const { latitude, longitude, accuracy } = position.coords;
-          const timestamp = position.timestamp;
-          
+        watchId = navigator.geolocation.watchPosition((position) => {
+          currentPos = position;
+        }, (error) => console.error("GPS Error: ", error), { enableHighAccuracy: true });
+
+        locationInterval = setInterval(async () => {
+          if (!currentPos) return;
+          const { latitude, longitude } = currentPos.coords;
           try {
-            await fetch('/api/driver-app/trip/location', {
+            await fetch('/api/location/update', {
               method: 'POST',
               headers: { 
                 'Authorization': `Bearer ${localStorage.getItem('token')}`,
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ latitude, longitude, accuracy, timestamp })
+              body: JSON.stringify({ latitude, longitude })
             });
           } catch(e) {
              console.error('Location sync error', e);
           }
-        }, (error) => {
-          console.error("GPS Error: ", error);
-        }, {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        });
+        }, 5000);
       } else {
         alert("Geolocation is not supported by this browser.");
       }
+    }
+
+    function stopLocationTracking() {
+      if (locationInterval) clearInterval(locationInterval);
+      if (watchId !== null && navigator.geolocation) navigator.geolocation.clearWatch(watchId);
     }
   </script>
 </body>

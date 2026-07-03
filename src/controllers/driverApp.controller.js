@@ -1,4 +1,5 @@
 const Driver = require('../models/Driver');
+const Parent = require('../models/Parent');
 const Bus = require('../models/Bus');
 const Route = require('../models/Route');
 const Student = require('../models/Student');
@@ -45,14 +46,27 @@ exports.getDashboard = async (req, res, next) => {
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
-    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+    const tripsToday = await Trip.find({ driver: driver._id, date: { $gte: startOfDay } });
+    const morningTrip = tripsToday.find(t => t.session === 'Morning');
+    const eveningTrip = tripsToday.find(t => t.session === 'Evening');
 
-    let currentTripStatus = 'NO_ACTIVE_TRIP';
+    let currentTripStatus = 'NO_MORNING_TRIP';
     let tripDetails = null;
 
-    if (activeTrip) {
-      currentTripStatus = 'Running';
-      tripDetails = activeTrip;
+    if (!morningTrip) {
+      currentTripStatus = 'NO_MORNING_TRIP';
+    } else if (morningTrip.status === 'in_progress') {
+      currentTripStatus = 'MORNING_RUNNING';
+      tripDetails = morningTrip;
+    } else if (morningTrip.status === 'completed' && !eveningTrip) {
+      currentTripStatus = 'NO_EVENING_TRIP';
+      tripDetails = morningTrip;
+    } else if (eveningTrip && eveningTrip.status === 'in_progress') {
+      currentTripStatus = 'EVENING_RUNNING';
+      tripDetails = eveningTrip;
+    } else if (eveningTrip && eveningTrip.status === 'completed') {
+      currentTripStatus = 'ALL_COMPLETED';
+      tripDetails = eveningTrip;
     }
 
     const data = {
@@ -166,10 +180,21 @@ exports.startTrip = async (req, res, next) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    const activeTrip = await Trip.findOne({ driver: driver._id, status: 'in_progress', date: { $gte: startOfDay } });
+    const tripsToday = await Trip.find({ driver: driver._id, date: { $gte: startOfDay } });
+    const activeTrip = tripsToday.find(t => t.status === 'in_progress');
+    
     if (activeTrip) {
       return sendError(res, 400, 'A trip is already running.');
     }
+
+    const morningTrip = tripsToday.find(t => t.session === 'Morning');
+    const eveningTrip = tripsToday.find(t => t.session === 'Evening');
+
+    if (morningTrip && eveningTrip) {
+      return sendError(res, 400, 'All trips for today are completed.');
+    }
+
+    const session = !morningTrip ? 'Morning' : 'Evening';
 
     const newTrip = await Trip.create({
       institution: req.user.institution,
@@ -177,6 +202,7 @@ exports.startTrip = async (req, res, next) => {
       bus: driver.assignedBus._id,
       driver: driver._id,
       date: new Date(),
+      session: session,
       status: 'in_progress',
       startTime: new Date()
     });
@@ -191,6 +217,21 @@ exports.startTrip = async (req, res, next) => {
     }));
     if (notifications.length > 0) {
       await Notification.insertMany(notifications);
+    }
+
+    // Notify Parents
+    const assignedStudents = await Student.find({ assignedBus: driver.assignedBus._id, isDeleted: false, institution: req.user.institution });
+    const parentIds = [...new Set(assignedStudents.flatMap(s => s.parents))];
+    const parents = await Parent.find({ _id: { $in: parentIds }, status: 'active' });
+    
+    const parentNotifications = parents.map(p => ({
+      recipient: p.user,
+      title: 'Trip Started',
+      body: `Your child's school bus has started today's trip.`,
+      type: 'info'
+    }));
+    if (parentNotifications.length > 0) {
+      await Notification.insertMany(parentNotifications);
     }
 
     sendSuccess(res, 200, 'Trip started successfully', newTrip);
@@ -226,6 +267,21 @@ exports.endTrip = async (req, res, next) => {
     }));
     if (notifications.length > 0) {
       await Notification.insertMany(notifications);
+    }
+
+    // Notify Parents
+    const assignedStudents = await Student.find({ assignedBus: driver.assignedBus._id, isDeleted: false, institution: req.user.institution });
+    const parentIds = [...new Set(assignedStudents.flatMap(s => s.parents))];
+    const parents = await Parent.find({ _id: { $in: parentIds }, status: 'active' });
+    
+    const parentNotifications = parents.map(p => ({
+      recipient: p.user,
+      title: 'Trip Completed',
+      body: `Your child's school bus has completed today's trip.`,
+      type: 'info'
+    }));
+    if (parentNotifications.length > 0) {
+      await Notification.insertMany(parentNotifications);
     }
 
     sendSuccess(res, 200, 'Trip ended successfully', activeTrip);

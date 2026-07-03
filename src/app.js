@@ -31,6 +31,7 @@ app.use('/api/parent-app', require('./routes/parentApp.routes'));
 app.use('/api/buses', require('./routes/bus.routes'));
 app.use('/api/routes', require('./routes/route.routes'));
 app.use('/api/stops', require('./routes/stop.routes'));
+app.use('/api/location', require('./routes/location.routes'));
 app.use('/api/announcements', require('./routes/announcement.routes'));
 app.use('/api/notifications', require('./routes/notification.routes'));
 app.use('/api/reports', require('./routes/report.routes'));

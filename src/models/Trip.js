@@ -6,6 +6,7 @@ const tripSchema = new mongoose.Schema({
   bus: { type: mongoose.Schema.Types.ObjectId, ref: 'Bus', required: true },
   driver: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver', required: true },
   date: { type: Date, required: true },
+  session: { type: String, enum: ['Morning', 'Evening'] },
   status: { type: String, enum: ['scheduled', 'in_progress', 'completed', 'cancelled'], default: 'scheduled' },
   startTime: { type: Date },
   endTime: { type: Date },

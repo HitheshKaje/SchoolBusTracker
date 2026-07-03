@@ -30,13 +30,13 @@ exports.getDashboard = async (req, res, next) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const activeTripsCount = await Trip.countDocuments({ bus: { $in: busIds }, status: 'in_progress', date: { $gte: startOfDay } });
-    const completedTripsCount = await Trip.countDocuments({ bus: { $in: busIds }, status: 'completed' });
+    const completedTripsCount = await Trip.countDocuments({ bus: { $in: busIds }, status: 'completed', date: { $gte: startOfDay } });
 
-    let currentTripStatus = 'No Trips';
+    let currentTripStatus = 'No Active Trip';
     if (activeTripsCount > 0) {
-      currentTripStatus = 'Running';
+      currentTripStatus = 'In Progress';
     } else if (completedTripsCount > 0) {
-      currentTripStatus = 'Completed (Today)'; // Simplified indicator
+      currentTripStatus = 'Completed';
     }
 
     sendSuccess(res, 200, 'Parent dashboard fetched successfully', {
@@ -91,7 +91,10 @@ exports.getAssignedRoutes = async (req, res, next) => {
     if (!parent) return sendError(res, 404, 'Parent profile not found');
 
     const students = await Student.find({ parents: parent._id, isDeleted: false });
-    const routeIds = [...new Set(students.map(s => s.assignedRoute?.toString()).filter(Boolean))];
+    const busIds = [...new Set(students.map(s => s.assignedBus?.toString()).filter(Boolean))];
+
+    const buses = await Bus.find({ _id: { $in: busIds }, institution: req.user.institution });
+    const routeIds = [...new Set(buses.map(b => b.route?.toString()).filter(Boolean))];
 
     const routes = await Route.find({ _id: { $in: routeIds }, institution: req.user.institution }).populate('stops');
 
@@ -122,9 +125,20 @@ exports.getNotifications = async (req, res, next) => {
     const announcements = await Announcement.find({
       institution: req.user.institution,
       targetAudience: { $in: ['All', 'Parent'] }
-    }).sort({ createdAt: -1 });
+    }).lean();
 
-    sendSuccess(res, 200, 'Notifications fetched successfully', announcements);
+    const notifications = await Notification.find({
+      recipient: req.user._id
+    }).lean();
+
+    const mappedNotifications = notifications.map(n => ({
+      ...n,
+      message: n.body
+    }));
+
+    const combined = [...announcements, ...mappedNotifications].sort((a, b) => b.createdAt - a.createdAt);
+
+    sendSuccess(res, 200, 'Notifications fetched successfully', combined);
   } catch (error) {
     next(error);
   }

@@ -119,9 +119,9 @@
           document.getElementById('statTripStatus').textContent = res.currentTripStatus;
           
           const tripEl = document.getElementById('statTripStatus');
-          if (res.currentTripStatus === 'Running') {
+          if (res.currentTripStatus === 'In Progress') {
              tripEl.classList.add('text-green-600');
-          } else if (res.currentTripStatus === 'Completed (Today)') {
+          } else if (res.currentTripStatus === 'Completed') {
              tripEl.classList.add('text-blue-600');
           }
 
