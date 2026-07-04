@@ -13,7 +13,7 @@ const showMessage = (elementId, message, isError = false) => {
 // API Call Wrapper
 const apiCall = async (endpoint, method, body, requiresAuth = false) => {
   const headers = { 'Content-Type': 'application/json' };
-  
+
   if (requiresAuth) {
     const token = localStorage.getItem('token');
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -36,7 +36,7 @@ const apiCall = async (endpoint, method, body, requiresAuth = false) => {
 const handleAuthSuccess = (token, user) => {
   localStorage.setItem('token', token);
   localStorage.setItem('user', JSON.stringify(user));
-  
+
   setTimeout(() => {
     switch (user.role) {
       case 'Admin': window.location.href = '/admin/dashboard.html'; break;
@@ -69,7 +69,7 @@ if (orgSearchInput) {
 
   orgSearchInput.addEventListener('input', (e) => {
     const query = e.target.value.trim();
-    
+
     // Reset hidden fields on input change to prevent stale data
     orgName.value = '';
     orgDisplayName.value = '';
@@ -77,14 +77,14 @@ if (orgSearchInput) {
     orgLat.value = '';
     orgLon.value = '';
     orgOsmId.value = '';
-    
+
     if (query.length < 3) {
       orgDropdown.classList.add('hidden');
       return;
     }
-    
+
     clearTimeout(debounceTimer);
-    
+
     orgDropdown.innerHTML = '';
     orgDropdown.appendChild(renderDropdownItem('Searching...'));
     orgDropdown.classList.remove('hidden');
@@ -93,15 +93,15 @@ if (orgSearchInput) {
       try {
         const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`);
         if (!response.ok) throw new Error('API Error');
-        
+
         const data = await response.json();
         orgDropdown.innerHTML = '';
-        
+
         if (data.length === 0) {
           orgDropdown.appendChild(renderDropdownItem('No organizations found.'));
           return;
         }
-        
+
         data.forEach(place => {
           const displayName = place.display_name;
           const name = place.name || displayName.split(',')[0];
@@ -147,7 +147,7 @@ if (registerForm) {
     const body = Object.fromEntries(formData.entries());
 
     const { status, data } = await apiCall('/register', 'POST', body);
-    
+
     if (data.success) {
       showMessage('formMessage', 'Account created successfully. Please sign in.');
       setTimeout(() => {
@@ -166,10 +166,10 @@ const loginForm = document.getElementById('loginForm');
 if (loginForm) {
   const urlParams = new URLSearchParams(window.location.search);
   const type = urlParams.get('type') || 'user';
-  
+
   const loginTitle = document.getElementById('loginTitle');
   const loginSubtitle = document.getElementById('loginSubtitle');
-  
+
   if (loginTitle && loginSubtitle) {
     if (type === 'org') {
       loginTitle.textContent = 'Organization Login';
@@ -191,7 +191,7 @@ if (loginForm) {
     body.loginType = type;
 
     const { status, data } = await apiCall('/login', 'POST', body);
-    
+
     if (data.success) {
       showMessage('formMessage', 'Login successful! Redirecting...');
       handleAuthSuccess(data.data.token, data.data.user);
@@ -213,9 +213,9 @@ if (forgotForm) {
     btn.textContent = 'Sending...';
 
     const mobile = document.getElementById('mobile').value;
-    
+
     const { status, data } = await apiCall('/forgot-password', 'POST', { mobile });
-    
+
     if (data.success) {
       showMessage('formMessage', 'OTP sent successfully! Redirecting...');
       // Store mobile temporarily for the next step
@@ -254,7 +254,7 @@ if (otpForm) {
     inputs.forEach(i => otp += i.value);
 
     const { status, data } = await apiCall('/verify-otp', 'POST', { mobile: resetMobile, otp });
-    
+
     if (data.success) {
       showMessage('formMessage', 'OTP Verified! Redirecting...');
       sessionStorage.setItem('resetToken', data.data.resetToken);
@@ -267,6 +267,36 @@ if (otpForm) {
       btn.textContent = 'Verify OTP';
     }
   });
+  const resendBtn = document.getElementById("resendBtn");
+
+  if (resendBtn) {
+    resendBtn.addEventListener("click", async () => {
+
+      resendBtn.disabled = true;
+      resendBtn.textContent = "Sending...";
+
+      const mobile = sessionStorage.getItem("resetMobile");
+
+      const { data } = await apiCall(
+        "/forgot-password",
+        "POST",
+        { mobile }
+      );
+
+      if (data.success) {
+        showMessage("formMessage", "OTP resent successfully.");
+      } else {
+        showMessage(
+          "formMessage",
+          data.message || "Failed to resend OTP",
+          true
+        );
+      }
+
+      resendBtn.disabled = false;
+      resendBtn.textContent = "Resend";
+    });
+  }
 
   // OTP Input navigation logic
   const inputs = document.querySelectorAll('.otp-input');
@@ -290,7 +320,7 @@ if (resetForm) {
   resetForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const btn = document.getElementById('resetBtn');
-    
+
     const newPassword = document.getElementById('newPassword').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
 
@@ -303,15 +333,15 @@ if (resetForm) {
     btn.textContent = 'Updating...';
 
     const { status, data } = await apiCall('/reset-password', 'POST', { resetToken, newPassword });
-    
+
     if (data.success) {
       showMessage('formMessage', 'Password updated successfully! Logging you in...');
       sessionStorage.removeItem('resetMobile');
       sessionStorage.removeItem('resetToken');
       // Auto login logic - if backend sends token, use it
       if (data.data && data.data.token) {
-         // for simplicity, redirect to login page for them to login with new password
-         setTimeout(() => window.location.href = '/login.html', 2000);
+        // for simplicity, redirect to login page for them to login with new password
+        setTimeout(() => window.location.href = '/login.html', 2000);
       } else {
         setTimeout(() => window.location.href = '/login.html', 2000);
       }
