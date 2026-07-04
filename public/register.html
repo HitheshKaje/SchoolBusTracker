@@ -55,7 +55,7 @@
   </div>
 
   <div class="mt-8 sm:mx-auto sm:w-full sm:max-w-md z-10">
-    <div class="bg-white py-8 px-4 shadow-soft sm:rounded-2xl sm:px-10 border border-gray-100">
+    <div class="bg-white py-8 px-4 shadow-soft sm:rounded-2xl sm:px-10 border border-gray-100 max-h-[calc(100vh-16rem)] overflow-y-auto">
 
       <form id="registerForm" class="space-y-5">
         <div>
@@ -65,6 +65,25 @@
               class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
               placeholder="John Doe">
           </div>
+        </div>
+
+        <div>
+          <label for="orgSearchInput" class="block text-sm font-medium text-gray-700">Full Organization Name</label>
+          <div class="mt-1 relative">
+            <input id="orgSearchInput" type="text" required
+              class="appearance-none block w-full px-4 py-3 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all"
+              placeholder="e.g. Vivekananda College" autocomplete="off">
+            <!-- Autocomplete Dropdown -->
+            <ul id="orgDropdown" class="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto hidden">
+            </ul>
+          </div>
+          <!-- Hidden inputs for form submission -->
+          <input type="hidden" id="orgName" name="orgName">
+          <input type="hidden" id="orgDisplayName" name="orgDisplayName">
+          <input type="hidden" id="orgAddress" name="orgAddress">
+          <input type="hidden" id="orgLat" name="orgLat">
+          <input type="hidden" id="orgLon" name="orgLon">
+          <input type="hidden" id="orgOsmId" name="orgOsmId">
         </div>
 
         <div>

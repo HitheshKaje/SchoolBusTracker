@@ -47,12 +47,13 @@
             container.innerHTML += `
               <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
                 <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-4">
-                  <h3 class="text-xl font-bold text-gray-900">${bus.busNumber}</h3>
+                  <h3 class="text-xl font-bold text-gray-900">${bus.registrationNumber || 'Unknown Bus'}</h3>
                   <span class="px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">${bus.status || 'Active'}</span>
                 </div>
                 <div class="space-y-3 text-sm text-gray-600">
-                  <div class="flex justify-between"><span>Registration:</span> <span class="font-medium text-gray-900">${bus.registrationNumber}</span></div>
+                  <div class="flex justify-between"><span>Bus Number:</span> <span class="font-medium text-gray-900">${bus.registrationNumber}</span></div>
                   <div class="flex justify-between"><span>Capacity:</span> <span class="font-medium text-gray-900">${bus.capacity} seats</span></div>
+                  <div class="flex justify-between"><span>Driver:</span> <span class="font-medium text-gray-900">${bus.driver?.user?.name || 'Unassigned'}</span></div>
                   <div class="flex justify-between"><span>Route:</span> <span class="font-medium text-primary-600">${bus.route ? bus.route.name : 'N/A'}</span></div>
                 </div>
               </div>

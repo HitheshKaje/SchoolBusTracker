@@ -15,7 +15,25 @@ const errorHandler = (err, req, res, next) => {
   // Mongoose duplicate key
   if (err.code === 11000) {
     statusCode = 400;
-    message = 'Duplicate field value entered';
+    if (err.keyValue) {
+      const fields = Object.keys(err.keyValue);
+      const formattedFields = fields.map(field => {
+        if (field === 'mobile') return 'Mobile number';
+        if (field === 'email') return 'Email';
+        if (field === 'institution') return 'Institution';
+        if (field === 'osmId') return 'OSM ID';
+        return field.charAt(0).toUpperCase() + field.slice(1).replace(/([A-Z])/g, ' $1').trim();
+      });
+      
+      if (formattedFields.length > 1) {
+        const last = formattedFields.pop();
+        message = formattedFields.join(', ') + ' and ' + last + ' already exist.';
+      } else {
+        message = formattedFields[0] + ' already exists.';
+      }
+    } else {
+      message = 'Duplicate field value entered';
+    }
   }
 
   // Mongoose validation error

@@ -5,7 +5,7 @@ const { sendSuccess, sendError } = require('../utils/response');
 exports.getBuses = async (req, res, next) => {
   try {
     const baseQuery = { institution: req.user.institution, status: { $ne: 'inactive' } };
-    let features = new ApiFeatures(Bus.find(baseQuery).populate('driver route'), req.query)
+    let features = new ApiFeatures(Bus.find(baseQuery).populate({ path: 'driver', populate: { path: 'user' } }).populate('route'), req.query)
       .search(['registrationNumber'])
       .paginate();
 
@@ -42,7 +42,8 @@ exports.createBus = async (req, res, next) => {
 exports.getBus = async (req, res, next) => {
   try {
     const bus = await Bus.findOne({ _id: req.params.id, institution: req.user.institution })
-      .populate('driver route');
+      .populate({ path: 'driver', populate: { path: 'user' } })
+      .populate('route');
     if (!bus) return sendError(res, 404, 'Bus not found');
     sendSuccess(res, 200, 'Bus fetched', bus);
   } catch (error) {

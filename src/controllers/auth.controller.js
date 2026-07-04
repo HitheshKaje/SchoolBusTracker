@@ -4,6 +4,7 @@ const { sendSuccess, sendError } = require('../utils/response');
 const { sendSMS } = require('../services/sms.service');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const Institution = require('../models/Institution');
 
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
@@ -30,9 +31,15 @@ exports.register = async (req, res, next) => {
 
     let institutionId = null;
     if (role === 'Admin') {
+      const { orgName, orgDisplayName, orgAddress, orgLat, orgLon, orgOsmId } = req.body;
       const Institution = require('../models/Institution');
       const newInst = await Institution.create({
-        name: name + "'s Institution",
+        name: orgName || (name + "'s Institution"),
+        displayName: orgDisplayName,
+        address: orgAddress,
+        latitude: orgLat,
+        longitude: orgLon,
+        osmId: orgOsmId,
         contactEmail: email,
         contactPhone: mobile
       });
@@ -48,9 +55,7 @@ exports.register = async (req, res, next) => {
       institution: institutionId
     });
 
-    const token = generateToken(user._id);
-    sendSuccess(res, 201, 'Registration successful', {
-      token,
+    sendSuccess(res, 201, 'Account created successfully. Please sign in.', {
       user: {
         id: user._id,
         name: user.name,
@@ -126,7 +131,7 @@ exports.logout = async (req, res, next) => {
 // @access  Private
 exports.getMe = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user.id);
+    const user = await User.findById(req.user.id).populate('institution');
     sendSuccess(res, 200, 'User data fetched successfully', { user });
   } catch (error) {
     next(error);
@@ -233,6 +238,33 @@ exports.resetPassword = async (req, res, next) => {
     const token = generateToken(user._id);
 
     sendSuccess(res, 200, 'Password reset successful', { token });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete current user account
+// @route   DELETE /api/auth/me
+// @access  Private
+exports.deleteAccount = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return sendError(res, 404, 'User not found');
+    }
+    if (user.role !== 'Admin') {
+      return sendError(res, 403, 'Only Admins can delete their account here');
+    }
+    
+    // Optionally delete the associated institution
+    if (user.institution) {
+      const Institution = require('../models/Institution');
+      await Institution.findByIdAndDelete(user.institution);
+    }
+    
+    await User.findByIdAndDelete(req.user.id);
+    
+    sendSuccess(res, 200, 'Account deleted successfully');
   } catch (error) {
     next(error);
   }

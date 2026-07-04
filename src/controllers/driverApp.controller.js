@@ -8,6 +8,7 @@ const Announcement = require('../models/Announcement');
 const User = require('../models/User');
 const Trip = require('../models/Trip');
 const Notification = require('../models/Notification');
+const { startSimulation } = require('../services/tripSimulator');
 const { sendSuccess, sendError } = require('../utils/response');
 
 // Helper to get driver's own profile based on authenticated user
@@ -17,7 +18,10 @@ const getDriverProfile = async (userId, institutionId) => {
     .populate({
       path: 'assignedBus',
       populate: {
-        path: 'route'
+        path: 'route',
+        populate: {
+          path: 'stops'
+        }
       }
     });
 };
@@ -32,7 +36,7 @@ exports.getDashboard = async (req, res, next) => {
     
     if (driver.assignedBus && driver.assignedBus.route) {
       assignedRoute = driver.assignedBus.route;
-      stopsCount = await Stop.countDocuments({ route: assignedRoute._id, institution: req.user.institution });
+      stopsCount = assignedRoute.stops ? assignedRoute.stops.length : await Stop.countDocuments({ route: assignedRoute._id, institution: req.user.institution });
     }
 
     let studentsCount = 0;
@@ -104,8 +108,9 @@ exports.getAssignedRoute = async (req, res, next) => {
     
     if (!driver || !assignedRoute) return sendSuccess(res, 200, 'No route assigned', null);
 
-    const route = await Route.findOne({ _id: assignedRoute._id, institution: req.user.institution });
-    const stops = await Stop.find({ route: route._id, institution: req.user.institution });
+    const route = await Route.findOne({ _id: assignedRoute._id, institution: req.user.institution }).populate('stops');
+    // If route.stops exists, use it directly, else fallback
+    const stops = route.stops && route.stops.length > 0 ? route.stops : await Stop.find({ route: route._id, institution: req.user.institution });
 
     sendSuccess(res, 200, 'Assigned route fetched successfully', { route, stops });
   } catch (error) {
@@ -198,9 +203,9 @@ exports.startTrip = async (req, res, next) => {
 
     const newTrip = await Trip.create({
       institution: req.user.institution,
-      route: driver.assignedBus.route._id,
-      bus: driver.assignedBus._id,
-      driver: driver._id,
+      route: driver.assignedBus.route._id || driver.assignedBus.route,
+      bus: driver.assignedBus._id || driver.assignedBus,
+      driver: driver._id || driver,
       date: new Date(),
       session: session,
       status: 'in_progress',
@@ -232,6 +237,12 @@ exports.startTrip = async (req, res, next) => {
     }));
     if (parentNotifications.length > 0) {
       await Notification.insertMany(parentNotifications);
+    }
+
+    if (req.app.get('io')) {
+      req.app.get('io').emit('tripStarted', { tripId: newTrip._id, busId: newTrip.bus });
+      // Start Backend GPS Simulation
+      startSimulation(newTrip._id, driver.assignedBus.route._id, req.app.get('io'));
     }
 
     sendSuccess(res, 200, 'Trip started successfully', newTrip);
@@ -284,6 +295,10 @@ exports.endTrip = async (req, res, next) => {
       await Notification.insertMany(parentNotifications);
     }
 
+    if (req.app.get('io')) {
+      req.app.get('io').emit('tripEnded', { tripId: activeTrip._id, busId: activeTrip.bus });
+    }
+
     sendSuccess(res, 200, 'Trip ended successfully', activeTrip);
   } catch (error) {
     next(error);
@@ -315,6 +330,14 @@ exports.updateLocation = async (req, res, next) => {
       };
       activeTrip.lastUpdated = new Date();
       await activeTrip.save();
+
+      if (req.app.get('io')) {
+        req.app.get('io').emit('locationUpdate', { 
+          tripId: activeTrip._id, 
+          busId: activeTrip.bus, 
+          location: activeTrip.currentLocation 
+        });
+      }
     }
 
     sendSuccess(res, 200, 'Location updated successfully');

@@ -47,6 +47,91 @@ const handleAuthSuccess = (token, user) => {
   }, 1000);
 };
 
+// --- Organization Search Autocomplete ---
+const orgSearchInput = document.getElementById('orgSearchInput');
+if (orgSearchInput) {
+  const orgDropdown = document.getElementById('orgDropdown');
+  const orgName = document.getElementById('orgName');
+  const orgDisplayName = document.getElementById('orgDisplayName');
+  const orgAddress = document.getElementById('orgAddress');
+  const orgLat = document.getElementById('orgLat');
+  const orgLon = document.getElementById('orgLon');
+  const orgOsmId = document.getElementById('orgOsmId');
+  let debounceTimer;
+
+  const renderDropdownItem = (text, onClick) => {
+    const li = document.createElement('li');
+    li.className = 'px-4 py-3 hover:bg-primary-50 cursor-pointer border-b border-gray-100 last:border-0 text-sm text-gray-700';
+    li.textContent = text;
+    if (onClick) li.onclick = onClick;
+    return li;
+  };
+
+  orgSearchInput.addEventListener('input', (e) => {
+    const query = e.target.value.trim();
+    
+    // Reset hidden fields on input change to prevent stale data
+    orgName.value = '';
+    orgDisplayName.value = '';
+    orgAddress.value = '';
+    orgLat.value = '';
+    orgLon.value = '';
+    orgOsmId.value = '';
+    
+    if (query.length < 3) {
+      orgDropdown.classList.add('hidden');
+      return;
+    }
+    
+    clearTimeout(debounceTimer);
+    
+    orgDropdown.innerHTML = '';
+    orgDropdown.appendChild(renderDropdownItem('Searching...'));
+    orgDropdown.classList.remove('hidden');
+
+    debounceTimer = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=5&addressdetails=1`);
+        if (!response.ok) throw new Error('API Error');
+        
+        const data = await response.json();
+        orgDropdown.innerHTML = '';
+        
+        if (data.length === 0) {
+          orgDropdown.appendChild(renderDropdownItem('No organizations found.'));
+          return;
+        }
+        
+        data.forEach(place => {
+          const displayName = place.display_name;
+          const name = place.name || displayName.split(',')[0];
+          const li = renderDropdownItem(displayName, () => {
+            orgSearchInput.value = name;
+            orgName.value = name;
+            orgDisplayName.value = displayName;
+            orgAddress.value = displayName;
+            orgLat.value = place.lat;
+            orgLon.value = place.lon;
+            orgOsmId.value = place.osm_id;
+            orgDropdown.classList.add('hidden');
+          });
+          orgDropdown.appendChild(li);
+        });
+      } catch (error) {
+        orgDropdown.innerHTML = '';
+        orgDropdown.appendChild(renderDropdownItem('Unable to search organizations. Please try again.'));
+      }
+    }, 400); // 400ms debounce
+  });
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!orgSearchInput.contains(e.target) && !orgDropdown.contains(e.target)) {
+      orgDropdown.classList.add('hidden');
+    }
+  });
+}
+
 // --- Form Handlers ---
 
 // Register Form
@@ -64,8 +149,10 @@ if (registerForm) {
     const { status, data } = await apiCall('/register', 'POST', body);
     
     if (data.success) {
-      showMessage('formMessage', 'Registration successful! Redirecting...');
-      handleAuthSuccess(data.data.token, data.data.user);
+      showMessage('formMessage', 'Account created successfully. Please sign in.');
+      setTimeout(() => {
+        window.location.href = '/login.html?type=org';
+      }, 1500);
     } else {
       showMessage('formMessage', data.message || 'Registration failed', true);
       btn.disabled = false;

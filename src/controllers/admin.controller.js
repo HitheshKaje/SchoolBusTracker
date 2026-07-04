@@ -4,7 +4,9 @@ const Driver = require('../models/Driver');
 const Bus = require('../models/Bus');
 const Route = require('../models/Route');
 const Trip = require('../models/Trip');
+const User = require('../models/User');
 const Notification = require('../models/Notification');
+const { processLiveTrip } = require('./parentApp.controller');
 const Attendance = require('../models/Attendance');
 const { sendSuccess, sendError } = require('../utils/response');
 
@@ -57,6 +59,60 @@ exports.getDashboardStats = async (req, res, next) => {
         pendingNotifications: unreadNotifications
       }
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getLiveLocation = async (req, res, next) => {
+  try {
+    const { busId } = req.params;
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    let trip = await Trip.findOne({
+      bus: busId,
+      status: 'in_progress',
+      date: { $gte: startOfDay },
+      institution: req.user.institution
+    })
+    .populate({ path: 'driver', populate: { path: 'user' } })
+    .populate('bus')
+    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+
+    if (trip) {
+       // Self-heal: if trip route is missing/orphaned, try to pull it from the bus
+       if (!trip.route && trip.bus && trip.bus.route) {
+         trip.route = trip.bus.route;
+         await trip.save();
+         trip = await Trip.findById(trip._id)
+           .populate({ path: 'driver', populate: { path: 'user' } })
+           .populate('bus')
+           .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+       }
+       const processedData = processLiveTrip(trip);
+       return sendSuccess(res, 200, 'Active trip found', processedData);
+    }
+
+    trip = await Trip.findOne({
+      bus: busId,
+      status: 'completed',
+      date: { $gte: startOfDay },
+      institution: req.user.institution
+    })
+    .sort({ endTime: -1 })
+    .populate({ path: 'driver', populate: { path: 'user' } })
+    .populate('bus')
+    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+
+    if (trip) {
+       // Format for completed trips too so route reverse works
+       const processedData = processLiveTrip(trip);
+       processedData.status = 'completed';
+       return sendSuccess(res, 200, 'Trip completed', processedData);
+    }
+
+    return sendSuccess(res, 200, 'No active trip', { status: 'no_trip' });
   } catch (error) {
     next(error);
   }

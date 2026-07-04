@@ -19,11 +19,18 @@ exports.getDashboard = async (req, res, next) => {
     const parent = await getParentProfile(req.user.id, req.user.institution);
     if (!parent) return sendError(res, 404, 'Parent profile not found');
 
-    const students = await Student.find({ parents: parent._id, isDeleted: false, status: 'active' });
+    const students = await Student.find({ parents: parent._id, isDeleted: false, status: 'active' })
+      .populate({
+        path: 'assignedBus',
+        populate: {
+          path: 'route'
+        }
+      });
+      
     const studentsCount = students.length;
 
-    const busIds = [...new Set(students.map(s => s.assignedBus?.toString()).filter(Boolean))];
-    const routeIds = [...new Set(students.map(s => s.assignedRoute?.toString()).filter(Boolean))];
+    const busIds = [...new Set(students.map(s => s.assignedBus?._id?.toString()).filter(Boolean))];
+    const routeIds = [...new Set(students.map(s => s.assignedBus?.route?._id?.toString()).filter(Boolean))];
 
     const unreadNotifications = await Notification.countDocuments({ recipient: req.user._id, readStatus: false });
 
@@ -33,10 +40,21 @@ exports.getDashboard = async (req, res, next) => {
     const completedTripsCount = await Trip.countDocuments({ bus: { $in: busIds }, status: 'completed', date: { $gte: startOfDay } });
 
     let currentTripStatus = 'No Active Trip';
+    let activeTrip = null;
+
     if (activeTripsCount > 0) {
       currentTripStatus = 'In Progress';
+      activeTrip = await Trip.findOne({ bus: { $in: busIds }, status: 'in_progress', date: { $gte: startOfDay } })
+        .populate({ path: 'driver', populate: { path: 'user' } })
+        .populate('bus')
+        .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
     } else if (completedTripsCount > 0) {
       currentTripStatus = 'Completed';
+      activeTrip = await Trip.findOne({ bus: { $in: busIds }, status: 'completed', date: { $gte: startOfDay } })
+        .sort({ endTime: -1 })
+        .populate({ path: 'driver', populate: { path: 'user' } })
+        .populate('bus')
+        .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
     }
 
     sendSuccess(res, 200, 'Parent dashboard fetched successfully', {
@@ -45,6 +63,7 @@ exports.getDashboard = async (req, res, next) => {
       busCount: busIds.length,
       routeCount: routeIds.length,
       currentTripStatus,
+      activeTrip,
       unreadNotifications
     });
   } catch (error) {
@@ -58,8 +77,14 @@ exports.getChildren = async (req, res, next) => {
     if (!parent) return sendError(res, 404, 'Parent profile not found');
 
     const students = await Student.find({ parents: parent._id, isDeleted: false })
-      .populate('assignedBus')
-      .populate('assignedRoute')
+      .populate({
+        path: 'assignedBus',
+        populate: [
+          { path: 'driver', populate: { path: 'user' } },
+          { path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } }
+        ]
+      })
+      .populate({ path: 'assignedRoute', populate: { path: 'stops', options: { sort: { order: 1 } } } })
       .populate('pickupStop')
       .populate('dropoffStop');
 
@@ -77,7 +102,9 @@ exports.getAssignedBuses = async (req, res, next) => {
     const students = await Student.find({ parents: parent._id, isDeleted: false });
     const busIds = [...new Set(students.map(s => s.assignedBus?.toString()).filter(Boolean))];
 
-    const buses = await Bus.find({ _id: { $in: busIds }, institution: req.user.institution }).populate('route');
+    const buses = await Bus.find({ _id: { $in: busIds }, institution: req.user.institution })
+      .populate('route')
+      .populate({ path: 'driver', populate: { path: 'user' } });
 
     sendSuccess(res, 200, 'Assigned buses fetched successfully', buses);
   } catch (error) {
@@ -96,7 +123,7 @@ exports.getAssignedRoutes = async (req, res, next) => {
     const buses = await Bus.find({ _id: { $in: busIds }, institution: req.user.institution });
     const routeIds = [...new Set(buses.map(b => b.route?.toString()).filter(Boolean))];
 
-    const routes = await Route.find({ _id: { $in: routeIds }, institution: req.user.institution }).populate('stops');
+    const routes = await Route.find({ _id: { $in: routeIds }, institution: req.user.institution }).populate({ path: 'stops', options: { sort: { order: 1 } } });
 
     sendSuccess(res, 200, 'Assigned routes fetched successfully', routes);
   } catch (error) {
@@ -164,6 +191,71 @@ exports.getTripHistory = async (req, res, next) => {
     .limit(20);
 
     sendSuccess(res, 200, 'Trip history fetched successfully', trips);
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.getLiveLocation = async (req, res, next) => {
+  try {
+    const parent = await getParentProfile(req.user.id, req.user.institution);
+    if (!parent) return sendError(res, 404, 'Parent profile not found');
+
+    const students = await Student.find({ parents: parent._id, isDeleted: false });
+    const busIds = [...new Set(students.map(s => s.assignedBus?.toString()).filter(Boolean))];
+
+    if (busIds.length === 0) {
+      return sendSuccess(res, 200, 'No assigned bus', { status: 'no_bus' });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // Find active trip first
+    let trip = await Trip.findOne({
+      bus: { $in: busIds },
+      status: 'in_progress',
+      date: { $gte: startOfDay },
+      institution: req.user.institution
+    })
+    .populate({ path: 'driver', populate: { path: 'user' } })
+    .populate('bus')
+    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+
+    if (trip) {
+       // Self-heal: if trip route is missing/orphaned, try to pull it from the bus
+       if (!trip.route && trip.bus && trip.bus.route) {
+         trip.route = trip.bus.route;
+         await trip.save();
+         // Re-fetch with full population
+         trip = await Trip.findById(trip._id)
+           .populate({ path: 'driver', populate: { path: 'user' } })
+           .populate('bus')
+           .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+       }
+       
+       // Calculate real-time metrics using shared function
+       const processedData = exports.processLiveTrip(trip);
+       return sendSuccess(res, 200, 'Active trip found', processedData);
+    }
+
+    // If no active trip, check for completed trip today
+    trip = await Trip.findOne({
+      bus: { $in: busIds },
+      status: 'completed',
+      date: { $gte: startOfDay },
+      institution: req.user.institution
+    })
+    .sort({ endTime: -1 })
+    .populate({ path: 'driver', populate: { path: 'user' } })
+    .populate('bus')
+    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+
+    if (trip) {
+       return sendSuccess(res, 200, 'Trip completed', { status: 'completed', trip });
+    }
+
+    return sendSuccess(res, 200, 'No active trip', { status: 'no_trip' });
   } catch (error) {
     next(error);
   }

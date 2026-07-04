@@ -93,6 +93,58 @@
         </div>
       </div>
       
+      <!-- Current Trip Route Tracking -->
+      <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-6 hidden" id="liveRoutePanel">
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+           <h2 class="text-lg font-bold text-gray-800 flex items-center">
+             <svg class="w-5 h-5 text-primary-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z"></path></svg>
+             Live Route Tracking
+           </h2>
+           <div class="text-sm font-bold text-primary-700 bg-primary-50 px-4 py-2 rounded-full border border-primary-200 shadow-sm" id="liveEta">ETA: --</div>
+        </div>
+        <div class="p-6 grid grid-cols-1 md:grid-cols-3 gap-6">
+           <div class="md:col-span-2 space-y-4">
+              <div class="flex items-center justify-between p-4 bg-primary-50 rounded-xl border border-primary-100 shadow-sm">
+                 <div class="flex flex-col">
+                   <span class="text-xs text-primary-600 font-bold uppercase tracking-wider mb-1">From</span>
+                   <span class="text-xl font-black text-gray-900" id="liveFrom">--</span>
+                 </div>
+                 <svg class="w-6 h-6 text-primary-400 mx-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+                 <div class="flex flex-col text-right">
+                   <span class="text-xs text-primary-600 font-bold uppercase tracking-wider mb-1">To</span>
+                   <span class="text-xl font-black text-gray-900" id="liveTo">--</span>
+                 </div>
+              </div>
+              
+              <div class="grid grid-cols-2 gap-4">
+                 <div class="p-4 bg-gray-50 rounded-xl border border-gray-100 shadow-sm">
+                    <span class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1 block">Current Stop</span>
+                    <span class="text-lg font-bold text-primary-600 truncate block" id="liveCurrentStop">--</span>
+                 </div>
+                 <div class="p-4 bg-gray-50 rounded-xl border border-gray-100 shadow-sm text-right">
+                    <span class="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1 block">Next Stop</span>
+                    <span class="text-lg font-bold text-gray-700 truncate block" id="liveNextStop">--</span>
+                 </div>
+              </div>
+              
+              <div class="flex items-center justify-between p-4 border border-gray-100 rounded-xl">
+                <div>
+                  <span class="text-xs text-gray-500 font-medium uppercase tracking-wider block">Remaining Distance</span>
+                  <span class="text-lg font-bold text-gray-900" id="liveDistance">--</span>
+                </div>
+                <div class="text-right">
+                  <span class="text-xs text-gray-500 font-medium uppercase tracking-wider block">Total Distance</span>
+                  <span class="text-lg font-bold text-gray-900" id="totalRouteDistance">--</span>
+                </div>
+              </div>
+           </div>
+           
+           <div class="bg-gray-50 p-4 rounded-xl border border-gray-100 h-80 overflow-y-auto" id="liveStopsList">
+              <!-- Dynamically populated -->
+           </div>
+        </div>
+      </div>
+
       <!-- Driver Info & Trip Status -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
@@ -159,11 +211,11 @@
              document.getElementById('driverPhotoContainer').innerHTML = `<img src="${res.profile.user.profilePhoto}" class="w-full h-full object-cover">`;
           }
 
-          document.getElementById('statBus').textContent = res.profile.assignedBus ? res.profile.assignedBus.busNumber : 'None';
+          document.getElementById('statBus').textContent = res.profile.assignedBus ? res.profile.assignedBus.registrationNumber : 'None';
           document.getElementById('statBusSub').innerHTML = res.profile.assignedBus ? `Registration: ${res.profile.assignedBus.registrationNumber}` : 'Assign a bus via Admin';
           
-          document.getElementById('statRoute').textContent = res.profile.assignedRoute ? res.profile.assignedRoute.name : 'None';
-          document.getElementById('statRouteSub').innerHTML = res.profile.assignedRoute ? `Route No: ${res.profile.assignedRoute.routeNumber}` : 'Assign a route via Admin';
+          document.getElementById('statRoute').textContent = res.profile.assignedBus && res.profile.assignedBus.route ? res.profile.assignedBus.route.name : 'None';
+          document.getElementById('statRouteSub').innerHTML = res.profile.assignedBus && res.profile.assignedBus.route ? `Route No: ${res.profile.assignedBus.route.routeNumber}` : 'Assign a route via Admin';
 
           document.getElementById('statStops').textContent = res.stopsCount;
           document.getElementById('statStudents').textContent = res.studentsCount;
@@ -173,6 +225,95 @@
           document.getElementById('infoLicense').textContent = res.profile.licenseNumber || 'N/A';
           document.getElementById('infoExpiry').textContent = res.profile.licenseExpiry ? new Date(res.profile.licenseExpiry).toLocaleDateString() : 'N/A';
           
+          // Helper: calculate distance
+          const calcDist = (lat1, lon1, lat2, lon2) => {
+            const R = 6371; 
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+          };
+
+          // Render Route Tracking Panel
+          window.driverRouteStops = res.profile.assignedBus?.route?.stops || [];
+          const updateLiveRouteUI = (currentLat, currentLng) => {
+            const currentRoute = res.profile.assignedBus?.route;
+            if (!currentRoute) return;
+            const panel = document.getElementById('liveRoutePanel');
+            panel.classList.remove('hidden');
+            
+            document.getElementById('liveFrom').textContent = currentRoute.startPoint || '--';
+            document.getElementById('liveTo').textContent = currentRoute.endPoint || '--';
+            document.getElementById('totalRouteDistance').textContent = currentRoute.distance || '--';
+            document.getElementById('liveEta').textContent = `ETA: ${currentRoute.estimatedTime || '--'}`;
+
+            if (!window.driverRouteStops.length) return;
+            
+            let closestIdx = 0;
+            let minDistance = Infinity;
+            
+            if (currentLat && currentLng) {
+               window.driverRouteStops.forEach((stop, idx) => {
+                 const dist = calcDist(currentLat, currentLng, stop.location.coordinates[1], stop.location.coordinates[0]);
+                 if (dist < minDistance) { minDistance = dist; closestIdx = idx; }
+               });
+            }
+
+            let currName = '--', nxtName = '--';
+            if (closestIdx === 0) {
+              currName = 'Just Started';
+              nxtName = window.driverRouteStops[1] ? window.driverRouteStops[1].name : '--';
+            } else if (closestIdx === window.driverRouteStops.length - 1) {
+              currName = window.driverRouteStops[closestIdx].name;
+              nxtName = 'Destination Reached';
+            } else {
+              currName = window.driverRouteStops[closestIdx].name;
+              nxtName = window.driverRouteStops[closestIdx + 1] ? window.driverRouteStops[closestIdx + 1].name : '--';
+            }
+            
+            document.getElementById('liveCurrentStop').textContent = currName;
+            document.getElementById('liveNextStop').textContent = nxtName;
+            
+            if (currentLat && currentLng) {
+               const dest = window.driverRouteStops[window.driverRouteStops.length - 1];
+               const remDist = calcDist(currentLat, currentLng, dest.location.coordinates[1], dest.location.coordinates[0]);
+               document.getElementById('liveDistance').textContent = remDist.toFixed(1) + ' km';
+            }
+
+            // Timeline list
+            const listDiv = document.getElementById('liveStopsList');
+            listDiv.innerHTML = '';
+            window.driverRouteStops.forEach((stop, idx) => {
+              const isLast = idx === window.driverRouteStops.length - 1;
+              const isPassed = idx < closestIdx;
+              const isCurrent = idx === closestIdx;
+              
+              let dotClass = 'border-gray-300 bg-white';
+              let textClass = 'text-gray-500 font-medium';
+              if (isPassed) { dotClass = 'border-gray-300 bg-gray-300'; textClass = 'text-gray-400 line-through'; }
+              else if (isCurrent) { dotClass = 'border-primary-500 bg-primary-500 animate-pulse'; textClass = 'text-primary-700 font-bold'; }
+              else if (isLast) { dotClass = 'border-red-500 bg-white'; textClass = 'text-red-600 font-bold'; }
+
+              listDiv.insertAdjacentHTML('beforeend', `
+                <div class="flex items-start h-16" id="driver-stop-item-${idx}">
+                  <div class="flex flex-col items-center mr-4 h-full">
+                    <div class="w-4 h-4 rounded-full border-2 ${dotClass} z-10 flex-none mt-1"></div>
+                    ${!isLast ? '<div class="w-0.5 flex-1 bg-gray-200 mt-1 mb-1 relative"><div class="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">↓</div></div>' : ''}
+                  </div>
+                  <div class="pb-4">
+                    <p class="text-sm ${textClass}">${stop.name}</p>
+                    ${stop.estimatedTime ? `<p class="text-xs text-gray-400">${stop.estimatedTime}</p>` : ''}
+                  </div>
+                </div>
+              `);
+            });
+            
+            const currItem = document.getElementById(`driver-stop-item-${closestIdx}`);
+            if(currItem) currItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          };
+
           // Trip Management Logic
           const tripStatusEl = document.getElementById('tripStatus');
           const tripDetailsEl = document.getElementById('tripDetails');
@@ -184,7 +325,7 @@
 
           if (res.currentTripStatus === 'NO_MORNING_TRIP') {
              tripStatusEl.textContent = 'No Morning Trip';
-             if (res.profile.assignedBus && res.profile.assignedRoute) {
+             if (res.profile.assignedBus && res.profile.assignedBus.route) {
                 startBtn.textContent = 'Start Morning Trip';
                 startBtn.classList.remove('hidden');
              }
@@ -196,6 +337,7 @@
              startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
              endBtn.classList.remove('hidden');
              startLocationTracking();
+             updateLiveRouteUI(res.tripDetails.currentLocation?.latitude, res.tripDetails.currentLocation?.longitude);
           } else if (res.currentTripStatus === 'NO_EVENING_TRIP') {
              tripStatusEl.textContent = 'Morning Trip Completed';
              tripStatusEl.className = 'text-3xl font-black text-blue-600 transition-colors';
@@ -203,7 +345,7 @@
              tripDetailsEl.classList.remove('hidden');
              startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
              endTimeEl.textContent = res.tripDetails.endTime ? new Date(res.tripDetails.endTime).toLocaleTimeString() : '-';
-             if (res.profile.assignedBus && res.profile.assignedRoute) {
+             if (res.profile.assignedBus && res.profile.assignedBus.route) {
                 startBtn.textContent = 'Start Evening Trip';
                 startBtn.classList.remove('hidden');
              }
@@ -215,6 +357,7 @@
              startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
              endBtn.classList.remove('hidden');
              startLocationTracking();
+             updateLiveRouteUI(res.tripDetails.currentLocation?.latitude, res.tripDetails.currentLocation?.longitude);
           } else if (res.currentTripStatus === 'ALL_COMPLETED') {
              tripStatusEl.textContent = 'All trips for today are completed.';
              tripStatusEl.className = 'text-2xl font-black text-blue-600 transition-colors';
@@ -223,6 +366,8 @@
              startTimeEl.textContent = new Date(res.tripDetails.startTime).toLocaleTimeString();
              endTimeEl.textContent = res.tripDetails.endTime ? new Date(res.tripDetails.endTime).toLocaleTimeString() : '-';
           }
+          
+          window.updateLiveRouteUI = updateLiveRouteUI; // expose to tracking loop
         }
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -280,6 +425,9 @@
         locationInterval = setInterval(async () => {
           if (!currentPos) return;
           const { latitude, longitude } = currentPos.coords;
+          
+          if(window.updateLiveRouteUI) window.updateLiveRouteUI(latitude, longitude);
+          
           try {
             await fetch('/api/location/update', {
               method: 'POST',

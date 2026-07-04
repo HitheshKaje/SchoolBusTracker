@@ -5,6 +5,7 @@ const routeSchema = new mongoose.Schema({
   name: { type: String, required: true },
   routeNumber: { type: String, required: true, unique: true },
   distance: { type: String },
+  estimatedTime: { type: String },
   startPoint: { type: String },
   endPoint: { type: String },
   stops: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Stop' }],

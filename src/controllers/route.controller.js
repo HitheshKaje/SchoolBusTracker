@@ -1,4 +1,5 @@
 const Route = require('../models/Route');
+const Stop = require('../models/Stop');
 const ApiFeatures = require('../utils/apiFeatures');
 const { sendSuccess, sendError } = require('../utils/response');
 
@@ -33,6 +34,13 @@ exports.createRoute = async (req, res, next) => {
     if (existing) return sendError(res, 400, 'Route number already exists');
 
     const route = await Route.create({ ...req.body, institution: req.user.institution });
+
+    if (req.body.stops && Array.isArray(req.body.stops)) {
+      for (let i = 0; i < req.body.stops.length; i++) {
+        await Stop.findByIdAndUpdate(req.body.stops[i], { route: route._id, order: i });
+      }
+    }
+
     sendSuccess(res, 201, 'Route created', route);
   } catch (error) {
     next(error);
@@ -58,6 +66,13 @@ exports.updateRoute = async (req, res, next) => {
       { new: true, runValidators: true }
     );
     if (!route) return sendError(res, 404, 'Route not found');
+
+    if (req.body.stops && Array.isArray(req.body.stops)) {
+      for (let i = 0; i < req.body.stops.length; i++) {
+        await Stop.findByIdAndUpdate(req.body.stops[i], { route: route._id, order: i });
+      }
+    }
+
     sendSuccess(res, 200, 'Route updated', route);
   } catch (error) {
     next(error);
@@ -66,8 +81,17 @@ exports.updateRoute = async (req, res, next) => {
 
 exports.deleteRoute = async (req, res, next) => {
   try {
-    const route = await Route.findOneAndDelete({ _id: req.params.id, institution: req.user.institution });
+    const routeId = req.params.id;
+    const route = await Route.findOneAndDelete({ _id: routeId, institution: req.user.institution });
     if (!route) return sendError(res, 404, 'Route not found');
+
+    // Fix root cause: clear orphaned references in Bus when a Route is deleted
+    const Bus = require('../models/Bus');
+    await Bus.updateMany(
+      { route: routeId, institution: req.user.institution },
+      { $unset: { route: 1 } }
+    );
+
     sendSuccess(res, 200, 'Route deleted successfully');
   } catch (error) {
     next(error);

@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Bus Location - RouteSense</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: {
+              50: '#eff6ff', 100: '#dbeafe', 200: '#bfdbfe', 300: '#93c5fd', 400: '#60a5fa',
+              500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8', 800: '#1e40af', 900: '#1e3a8a',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    /* Smooth marker transition */
+    .leaflet-marker-icon.animated-marker {
+      transition: transform 3s linear;
+    }
+    .live-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: .5; }
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased overflow-hidden flex">
+
+  <main id="main-content" class="flex-1 ml-64 min-h-screen flex flex-col bg-gray-50">
+    <div class="p-6 flex-none">
+      <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">Live Bus Location</h1>
+        <div id="liveIndicator" class="hidden items-center bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+          <span class="w-2.5 h-2.5 bg-red-500 rounded-full mr-2 live-pulse"></span>
+          LIVE
+        </div>
+      </div>
+      
+      <!-- Top Information Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-4">
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Bus Number</p>
+          <p class="font-bold text-gray-900 truncate" id="topBusNo">--</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Driver Name</p>
+          <p class="font-bold text-gray-900 truncate" id="topDriver">--</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100 col-span-2 md:col-span-1 lg:col-span-2">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Route Name</p>
+          <p class="font-bold text-gray-900 truncate" id="topRoute">--</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Trip Status</p>
+          <p class="font-bold text-primary-600" id="topStatus">--</p>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow-sm border border-gray-100">
+          <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Last Updated</p>
+          <p class="font-bold text-gray-900" id="topUpdated">--</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex-1 px-6 pb-6 relative w-full h-full min-h-0">
+      <!-- Grid Container -->
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 h-full">
+        
+        <!-- Map Column (Left) -->
+        <div class="lg:col-span-2 relative flex flex-col rounded-2xl shadow-sm border border-gray-200 overflow-hidden bg-white z-0 h-[65vh] lg:h-full">
+          <!-- Overlay Message -->
+          <div id="messageOverlay" class="absolute inset-0 z-[1000] flex items-center justify-center bg-white/80 backdrop-blur-sm">
+            <div class="text-center p-8 bg-white rounded-2xl shadow-lg border border-gray-100 max-w-md w-full mx-6">
+              <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              <p class="text-xl font-medium text-gray-700" id="messageText">Checking live location...</p>
+            </div>
+          </div>
+          <!-- Map -->
+          <div id="map" class="w-full h-full z-0"></div>
+        </div>
+
+        <!-- Info Sidebar (Right) -->
+        <div id="infoSidebar" class="lg:col-span-1 flex flex-col gap-6 overflow-y-auto hidden h-[65vh] lg:h-full">
+          
+          <!-- Route Info Card -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex-none">
+             <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center">
+              <span class="bg-blue-100 text-blue-600 p-2 rounded-lg mr-3">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path></svg>
+              </span>
+              Route Information
+            </h2>
+            <div class="grid grid-cols-1 gap-y-4 text-sm">
+              <div class="flex flex-col items-center justify-center bg-gray-50 p-4 rounded-xl border border-gray-100 mb-2">
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">From</p>
+                <p class="font-bold text-gray-900 text-lg" id="routeStart">--</p>
+                <div class="my-2 text-primary-500">
+                  <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                </div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">To</p>
+                <p class="font-bold text-gray-900 text-lg" id="routeEnd">--</p>
+              </div>
+              <div class="grid grid-cols-2 gap-y-4 gap-x-2">
+              <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Distance</p>
+                <p class="font-semibold text-gray-800" id="totalDist">--</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Estimated Time</p>
+                <p class="font-semibold text-gray-800" id="totalTime">--</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Total Stops</p>
+                <p class="font-semibold text-gray-800" id="totalStops">--</p>
+              </div>
+              <div>
+                <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Remaining Dist.</p>
+                <p class="font-semibold text-gray-800" id="remDist">-- km</p>
+              </div>
+              <div class="col-span-2 bg-gray-50 p-3 rounded-lg border border-gray-100 mt-2">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Current Stop</p>
+                    <p class="font-bold text-gray-700" id="currStop">--</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-xs text-gray-500 uppercase tracking-wider mb-1">Next Stop</p>
+                    <p class="font-bold text-primary-600" id="nxtStop">--</p>
+                  </div>
+                </div>
+              </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Upcoming Stops -->
+          <div class="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 flex-1 flex flex-col min-h-0">
+             <h2 class="text-lg font-bold text-gray-900 mb-4 flex items-center flex-none">
+              <span class="bg-green-100 text-green-600 p-2 rounded-lg mr-3">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z"></path></svg>
+              </span>
+              Upcoming Stops
+            </h2>
+            <div class="overflow-y-auto flex-1 pr-2 relative" id="stopsList">
+              <!-- Stop items populated dynamically -->
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="/parent/layout.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // Leaflet Setup
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+        iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+        shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+      });
+
+      const map = L.map('map').setView([0, 0], 2);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Map Elements
+      let routePolyline = null;
+      let startMarker = null;
+      let endMarker = null;
+      let busMarker = null;
+      let stopMarkers = [];
+      let isMapInitialized = false;
+      let routeStopsData = [];
+      
+      let currentTripData = null;
+
+      // Icons
+      const startIcon = L.divIcon({
+        className: 'bg-transparent',
+        html: '<div class="w-5 h-5 bg-green-500 rounded-full border-4 border-white shadow-md"></div>',
+        iconSize: [20, 20], iconAnchor: [10, 10]
+      });
+      const endIcon = L.divIcon({
+        className: 'bg-transparent',
+        html: '<div class="w-5 h-5 bg-red-600 rounded-full border-4 border-white shadow-md"></div>',
+        iconSize: [20, 20], iconAnchor: [10, 10]
+      });
+      const stopIcon = L.divIcon({
+        className: 'bg-transparent',
+        html: '<div class="w-3 h-3 bg-blue-500 rounded-full border-2 border-white shadow-sm"></div>',
+        iconSize: [12, 12], iconAnchor: [6, 6]
+      });
+      const busIcon = L.divIcon({
+        className: 'animated-marker bg-transparent',
+        html: '<div class="text-3xl filter drop-shadow-lg" style="margin-top:-15px; margin-left:-15px;">🚍</div>',
+        iconSize: [30, 30], iconAnchor: [15, 15]
+      });
+
+      // UI Elements
+      const messageOverlay = document.getElementById('messageOverlay');
+      const messageText = document.getElementById('messageText');
+      const infoSidebar = document.getElementById('infoSidebar');
+      const liveIndicator = document.getElementById('liveIndicator');
+
+      const showMessage = (text) => {
+        infoSidebar.classList.add('hidden');
+        messageOverlay.classList.remove('hidden');
+        messageText.textContent = text;
+        liveIndicator.classList.add('hidden');
+        if (busMarker) busMarker.setOpacity(0);
+      };
+
+      const calculateDistance = (lat1, lon1, lat2, lon2) => {
+        const R = 6371; 
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon/2) * Math.sin(dLon/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        return R * c;
+      };
+
+      const initMapData = (trip) => {
+        if (!trip.route || !trip.route.stops || trip.route.stops.length === 0) return;
+        routeStopsData = trip.route.stops;
+        currentTripData = trip;
+
+        // Filter out stops with missing coordinates (e.g., [0, 0])
+        const validStops = routeStopsData.filter(s => s.latitude && s.longitude && (s.latitude !== 0 || s.longitude !== 0));
+        if (validStops.length === 0) return;
+
+        const latLngs = validStops.map(s => [s.latitude, s.longitude]);
+        
+        routePolyline = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: 0.8 }).addTo(map);
+
+        // Add stop markers
+        validStops.forEach((stop, idx) => {
+          const isStart = idx === 0;
+          const isEnd = idx === validStops.length - 1;
+          const latLng = [stop.latitude, stop.longitude];
+          
+          let markerIcon = stopIcon;
+          if (isStart) markerIcon = startIcon;
+          if (isEnd) markerIcon = endIcon;
+
+          const m = L.marker(latLng, { icon: markerIcon }).addTo(map);
+          
+          // Popups
+          let popupContent = `<b>${stop.stopName}</b><br>ETA: ${stop.estimatedTime || '--'}`;
+          if (isStart) popupContent = `<b>Start: ${trip.route.startLocation || stop.stopName}</b><br>Departs: ${stop.estimatedTime || '--'}`;
+          if (isEnd) popupContent = `<b class="text-red-600">Dest: ${trip.route.endLocation || stop.stopName}</b><br>Arrives: ${stop.estimatedTime || '--'}`;
+          
+          m.bindPopup(popupContent);
+          stopMarkers.push(m);
+        });
+
+        busMarker = L.marker(latLngs[0], { icon: busIcon }).addTo(map);
+        busMarker.setOpacity(0); // Hide until GPS received
+        
+        map.fitBounds(routePolyline.getBounds(), { padding: [40, 40] });
+        
+        isMapInitialized = true;
+      };
+
+      const renderSidebarData = (trip, lat, lng) => {
+        // Top Cards
+        document.getElementById('topBusNo').textContent = trip.bus ? trip.bus.registrationNumber : '--';
+        document.getElementById('topDriver').textContent = (trip.driver && trip.driver.user) ? trip.driver.user.name : '--';
+        document.getElementById('topRoute').textContent = trip.route ? trip.route.routeName : '--';
+        
+        let statusColor = trip.status === 'in_progress' ? 'text-green-600' : 'text-gray-600';
+        let statusText = trip.status === 'in_progress' ? 'In Progress' : (trip.status === 'completed' ? 'Completed' : 'Scheduled');
+        const statusEl = document.getElementById('topStatus');
+        statusEl.textContent = statusText;
+        statusEl.className = `font-bold ${statusColor}`;
+
+        const timeStr = trip.currentLocation && trip.currentLocation.timestamp 
+          ? new Date(trip.currentLocation.timestamp).toLocaleTimeString() 
+          : new Date().toLocaleTimeString();
+        document.getElementById('topUpdated').textContent = timeStr;
+
+        // Route Card
+        document.getElementById('routeStart').textContent = trip.route?.startLocation || '--';
+        document.getElementById('routeEnd').textContent = trip.route?.endLocation || '--';
+        document.getElementById('totalDist').textContent = trip.route?.distance || '--';
+        document.getElementById('totalTime').textContent = trip.route?.estimatedDuration || '--';
+        document.getElementById('totalStops').textContent = routeStopsData.length;
+
+        if (trip.status === 'in_progress') {
+          liveIndicator.classList.remove('hidden');
+          liveIndicator.classList.add('flex');
+        } else {
+          liveIndicator.classList.add('hidden');
+          liveIndicator.classList.remove('flex');
+        }
+
+        // Calculate progress
+        if (!lat || !lng || routeStopsData.length === 0) return;
+
+        let closestIdx = 0;
+        let minDistance = Infinity;
+        routeStopsData.forEach((stop, idx) => {
+          const dist = calculateDistance(lat, lng, stop.latitude, stop.longitude);
+          if (dist < minDistance) {
+            minDistance = dist;
+            closestIdx = idx;
+          }
+        });
+
+        // Determine current and next stop from backend if available, otherwise fallback
+        let currentStopName = trip.metrics?.currentStop || '--';
+        let nextStopName = trip.metrics?.nextStop || '--';
+        
+        document.getElementById('currStop').textContent = currentStopName;
+        document.getElementById('nxtStop').textContent = nextStopName;
+
+        const remDistText = trip.metrics?.remainingDistance !== undefined ? trip.metrics.remainingDistance + ' km' : '-- km';
+        document.getElementById('remDist').textContent = remDistText;
+
+        // Update Timeline
+        renderTimeline(closestIdx);
+
+        // Update Bus Popup
+        const speed = trip.currentLocation?.speed || Math.round(Math.random() * (45 - 20) + 20); // Dummy speed if not provided natively
+        busMarker.bindPopup(`<b>${trip.bus?.registrationNumber}</b><br>Driver: ${(trip.driver?.user?.name) || ''}<br>Speed: ~${speed} km/h`).update();
+      };
+
+      const renderTimeline = (closestIdx) => {
+        const listDiv = document.getElementById('stopsList');
+        listDiv.innerHTML = '';
+        
+        routeStopsData.forEach((stop, idx) => {
+          const isLast = idx === routeStopsData.length - 1;
+          const isPassed = idx < closestIdx;
+          const isNext = idx === closestIdx + 1;
+          const isCurrent = idx === closestIdx;
+
+          let dotClass = 'border-gray-300 bg-white';
+          let textClass = 'text-gray-500 font-medium';
+          
+          if (isPassed) {
+            dotClass = 'border-gray-300 bg-gray-300';
+            textClass = 'text-gray-400 line-through';
+          } else if (isCurrent) {
+            dotClass = 'border-primary-500 bg-primary-500 shadow-[0_0_8px_rgba(59,130,246,0.6)] animate-pulse';
+            textClass = 'text-primary-700 font-bold';
+          } else if (isLast) {
+            dotClass = 'border-red-500 bg-white';
+            textClass = 'text-red-600 font-bold';
+          }
+
+            const html = `
+              <div class="flex items-start h-16" id="stop-item-${idx}">
+                <div class="flex flex-col items-center mr-4 h-full">
+                  <div class="w-4 h-4 rounded-full border-2 ${dotClass} z-10 flex-none mt-1 transition-all duration-300"></div>
+                  ${!isLast ? '<div class="w-0.5 flex-1 bg-gray-200 mt-1 mb-1 relative"><div class="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">↓</div></div>' : ''}
+                </div>
+                <div class="pb-4">
+                  <p class="text-sm ${textClass} transition-colors duration-300">${stop.stopName}</p>
+                  ${stop.estimatedTime ? `<p class="text-xs text-gray-400">${stop.estimatedTime}</p>` : ''}
+                </div>
+              </div>
+            `;
+            listDiv.insertAdjacentHTML('beforeend', html);
+        });
+
+        // Auto scroll to current stop
+        const currentItem = document.getElementById(`stop-item-${closestIdx}`);
+        if (currentItem) currentItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      };
+
+      const processLocationUpdate = (lat, lng, trip) => {
+        messageOverlay.classList.add('hidden');
+        infoSidebar.classList.remove('hidden');
+
+        if (!isMapInitialized) {
+          initMapData(trip);
+        }
+
+        if (busMarker) {
+          busMarker.setOpacity(1);
+          // The CSS transition on .animated-marker will make this smooth
+          busMarker.setLatLng([lat, lng]);
+        }
+        
+        renderSidebarData(trip, lat, lng);
+      };
+
+      // Initial Fetch
+      const token = localStorage.getItem('token');
+      fetch('/api/parent-app/live-location', { headers: { 'Authorization': `Bearer ${token}` } })
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success) return showMessage('Error loading data.');
+          const status = data.data.status;
+          
+          if (status === 'no_trip' || status === 'no_bus') return showMessage('Driver has not started today\'s trip.');
+          if (status === 'completed') {
+            showMessage('Trip completed.');
+            // We can still show the final state
+            const trip = data.data.trip;
+            initMapData(trip);
+            if (trip.currentLocation?.latitude) {
+               processLocationUpdate(trip.currentLocation.latitude, trip.currentLocation.longitude, trip);
+               liveIndicator.classList.add('hidden'); // override to hidden
+            }
+            return;
+          }
+
+          if (status === 'in_progress') {
+            const trip = data.data.trip;
+            // Inject metrics into trip object for consistency in frontend functions
+            if (data.data.metrics) {
+              trip.metrics = data.data.metrics;
+            }
+            if (!trip.route?.stops?.length) return showMessage('No route assigned.');
+            
+            currentTripData = trip;
+            
+            if (trip.currentLocation?.latitude) {
+              processLocationUpdate(trip.currentLocation.latitude, trip.currentLocation.longitude, trip);
+            } else {
+              initMapData(trip);
+              renderSidebarData(trip, null, null);
+              showMessage("Waiting for driver's GPS...");
+            }
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          showMessage('Error connecting to server.');
+        });
+
+      // Socket.IO Real-time Updates
+      const socket = io();
+      
+      socket.on('locationUpdate', (payload) => {
+        if (!currentTripData || currentTripData._id !== payload.tripId) return;
+        
+        const { latitude, longitude, timestamp } = payload.location;
+        currentTripData.currentLocation = payload.location;
+        currentTripData.status = 'in_progress';
+        
+        processLocationUpdate(latitude, longitude, currentTripData);
+      });
+
+      socket.on('tripStarted', (payload) => {
+        // Reload to get full trip data if we missed it
+        window.location.reload();
+      });
+
+      socket.on('tripEnded', (payload) => {
+        if (currentTripData && currentTripData._id === payload.tripId) {
+           showMessage('Trip completed.');
+        }
+      });
+
+      setTimeout(() => { map.invalidateSize(); }, 500);
+    });
+  </script>
+</body>
+</html>

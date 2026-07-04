@@ -13,6 +13,10 @@ document.addEventListener('DOMContentLoaded', () => {
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
           <span class="font-medium">Dashboard</span>
         </a>
+        <a href="/admin/live-location.html" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.242-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+          <span class="font-medium">Live Tracking</span>
+        </a>
         <a href="/admin/students.html" class="flex items-center space-x-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-primary-50 hover:text-primary-600 transition-colors">
           <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
           <span class="font-medium">Students</span>
@@ -71,9 +75,9 @@ document.addEventListener('DOMContentLoaded', () => {
           <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
           <span class="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-white"></span>
         </button>
-        <div class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold">
-          A
-        </div>
+        <a href="/admin/profile.html" id="adminAvatar" class="h-8 w-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-700 font-bold hover:bg-primary-200 transition-colors">
+          ?
+        </a>
       </div>
     </header>
   `;
@@ -93,6 +97,26 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (!token || !user || user.role !== 'Admin') {
       window.location.href = '/login.html';
+    } else {
+      // Fetch Admin Profile for dynamic avatar
+      fetch('/api/auth/me', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.success && data.data && data.data.user) {
+          const u = data.data.user;
+          const avatarEl = document.getElementById('adminAvatar');
+          if (avatarEl) {
+            let initial = '?';
+            if (u.institution && u.institution.name && u.institution.name.trim().length > 0) {
+              initial = u.institution.name.trim().charAt(0).toUpperCase();
+            }
+            avatarEl.textContent = initial;
+          }
+        }
+      })
+      .catch(err => console.error('Error fetching profile for avatar:', err));
     }
   }
 
