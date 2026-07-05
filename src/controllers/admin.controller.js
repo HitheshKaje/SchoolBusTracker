@@ -70,7 +70,7 @@ exports.getLiveLocation = async (req, res, next) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    let trip = await Trip.findOne({
+    const trip = await Trip.findOne({
       bus: busId,
       status: 'in_progress',
       date: { $gte: startOfDay },
@@ -80,39 +80,34 @@ exports.getLiveLocation = async (req, res, next) => {
     .populate('bus')
     .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
 
-    if (trip) {
-       // Self-heal: if trip route is missing/orphaned, try to pull it from the bus
-       if (!trip.route && trip.bus && trip.bus.route) {
-         trip.route = trip.bus.route;
-         await trip.save();
-         trip = await Trip.findById(trip._id)
-           .populate({ path: 'driver', populate: { path: 'user' } })
-           .populate('bus')
-           .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
-       }
-       const processedData = processLiveTrip(trip);
-       return sendSuccess(res, 200, 'Active trip found', processedData);
+    if (!trip) {
+      return res.status(200).json({ success: false, message: 'No active trip' });
     }
 
-    trip = await Trip.findOne({
-      bus: busId,
-      status: 'completed',
-      date: { $gte: startOfDay },
-      institution: req.user.institution
-    })
-    .sort({ endTime: -1 })
-    .populate({ path: 'driver', populate: { path: 'user' } })
-    .populate('bus')
-    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+    const Location = require('../models/Location');
+    const latestLocation = await Location.findOne({ trip: trip._id })
+      .sort({ timestamp: -1 })
+      .lean();
 
-    if (trip) {
-       // Format for completed trips too so route reverse works
-       const processedData = processLiveTrip(trip);
-       processedData.status = 'completed';
-       return sendSuccess(res, 200, 'Trip completed', processedData);
+    if (!latestLocation) {
+      return res.status(200).json({ success: false, message: 'Location not available' });
     }
+    
+    trip.currentLocation = {
+       latitude: latestLocation.location.coordinates[1],
+       longitude: latestLocation.location.coordinates[0],
+       timestamp: latestLocation.timestamp,
+       speed: latestLocation.speed || 0
+    };
 
-    return sendSuccess(res, 200, 'No active trip', { status: 'no_trip' });
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: 'in_progress',
+        trip: trip
+      }
+    });
+
   } catch (error) {
     next(error);
   }

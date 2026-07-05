@@ -3,7 +3,13 @@ const Stop = require('../models/Stop');
 
 exports.startSimulation = async (tripId, routeId, io) => {
   try {
-    const stops = await Stop.find({ route: routeId }).sort({ order: 1 });
+    const trip = await Trip.findById(tripId);
+    let stops = await Stop.find({ route: routeId }).sort({ order: 1 });
+    
+    if (trip && trip.session === 'Evening') {
+      stops = stops.reverse();
+    }
+
     if (!stops || stops.length < 2) {
       console.error(`Simulation failed: Route ${routeId} has fewer than 2 stops.`);
       return;

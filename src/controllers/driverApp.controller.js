@@ -8,6 +8,7 @@ const Announcement = require('../models/Announcement');
 const User = require('../models/User');
 const Trip = require('../models/Trip');
 const Notification = require('../models/Notification');
+const Location = require('../models/Location');
 const { startSimulation } = require('../services/tripSimulator');
 const { sendSuccess, sendError } = require('../utils/response');
 
@@ -330,6 +331,19 @@ exports.updateLocation = async (req, res, next) => {
       };
       activeTrip.lastUpdated = new Date();
       await activeTrip.save();
+
+      // Save to Location collection
+      await Location.create({
+        institution: req.user.institution,
+        trip: activeTrip._id,
+        bus: activeTrip.bus,
+        location: {
+          type: 'Point',
+          coordinates: [longitude, latitude] // [lng, lat]
+        },
+        speed: 0,
+        timestamp: activeTrip.currentLocation.timestamp
+      });
 
       if (req.app.get('io')) {
         req.app.get('io').emit('locationUpdate', { 

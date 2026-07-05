@@ -6,7 +6,7 @@ const { authorize } = require('../middlewares/role.middleware');
 const router = express.Router();
 
 router.use(protect);
-router.use(authorize('Driver'));
+router.use(authorize('Admin', 'Driver'));
 
 router.post('/update', updateLocation);
 

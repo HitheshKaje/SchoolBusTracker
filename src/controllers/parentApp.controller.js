@@ -205,14 +205,13 @@ exports.getLiveLocation = async (req, res, next) => {
     const busIds = [...new Set(students.map(s => s.assignedBus?.toString()).filter(Boolean))];
 
     if (busIds.length === 0) {
-      return sendSuccess(res, 200, 'No assigned bus', { status: 'no_bus' });
+      return res.status(200).json({ success: false, message: 'No active trip' });
     }
 
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
 
-    // Find active trip first
-    let trip = await Trip.findOne({
+    const trip = await Trip.findOne({
       bus: { $in: busIds },
       status: 'in_progress',
       date: { $gte: startOfDay },
@@ -222,40 +221,34 @@ exports.getLiveLocation = async (req, res, next) => {
     .populate('bus')
     .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
 
-    if (trip) {
-       // Self-heal: if trip route is missing/orphaned, try to pull it from the bus
-       if (!trip.route && trip.bus && trip.bus.route) {
-         trip.route = trip.bus.route;
-         await trip.save();
-         // Re-fetch with full population
-         trip = await Trip.findById(trip._id)
-           .populate({ path: 'driver', populate: { path: 'user' } })
-           .populate('bus')
-           .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
-       }
-       
-       // Calculate real-time metrics using shared function
-       const processedData = exports.processLiveTrip(trip);
-       return sendSuccess(res, 200, 'Active trip found', processedData);
+    if (!trip) {
+      return res.status(200).json({ success: false, message: 'No active trip' });
     }
 
-    // If no active trip, check for completed trip today
-    trip = await Trip.findOne({
-      bus: { $in: busIds },
-      status: 'completed',
-      date: { $gte: startOfDay },
-      institution: req.user.institution
-    })
-    .sort({ endTime: -1 })
-    .populate({ path: 'driver', populate: { path: 'user' } })
-    .populate('bus')
-    .populate({ path: 'route', populate: { path: 'stops', options: { sort: { order: 1 } } } });
+    const Location = require('../models/Location');
+    const latestLocation = await Location.findOne({ trip: trip._id })
+      .sort({ timestamp: -1 })
+      .lean();
 
-    if (trip) {
-       return sendSuccess(res, 200, 'Trip completed', { status: 'completed', trip });
+    if (!latestLocation) {
+      return res.status(200).json({ success: false, message: 'Location not available' });
     }
+    
+    trip.currentLocation = {
+       latitude: latestLocation.location.coordinates[1],
+       longitude: latestLocation.location.coordinates[0],
+       timestamp: latestLocation.timestamp,
+       speed: latestLocation.speed || 0
+    };
 
-    return sendSuccess(res, 200, 'No active trip', { status: 'no_trip' });
+    return res.status(200).json({
+      success: true,
+      data: {
+        status: 'in_progress',
+        trip: trip
+      }
+    });
+
   } catch (error) {
     next(error);
   }

@@ -279,28 +279,42 @@
 
       const initMapData = (trip) => {
         if (!trip.route || !trip.route.stops || trip.route.stops.length === 0) return;
+        
+        if (trip.session === 'Evening' && !trip.route.stops._isReversed) {
+          trip.route.stops.reverse();
+          trip.route.stops._isReversed = true;
+          
+          const temp = trip.route.startPoint;
+          trip.route.startPoint = trip.route.endPoint;
+          trip.route.endPoint = temp;
+          
+          trip.route.stops.forEach(s => {
+            s.estimatedTime = null;
+          });
+        }
+        
         routeStopsData = trip.route.stops;
         currentTripData = trip;
 
-        const validStops = routeStopsData.filter(s => s.latitude && s.longitude && (s.latitude !== 0 || s.longitude !== 0));
+        const validStops = routeStopsData.filter(s => s.location && s.location.coordinates && s.location.coordinates.length === 2);
         if (validStops.length === 0) return;
 
-        const latLngs = validStops.map(s => [s.latitude, s.longitude]);
+        const latLngs = validStops.map(s => [s.location.coordinates[1], s.location.coordinates[0]]);
         routePolyline = L.polyline(latLngs, { color: '#3b82f6', weight: 5, opacity: 0.8 }).addTo(map);
 
         validStops.forEach((stop, idx) => {
           const isStart = idx === 0;
           const isEnd = idx === validStops.length - 1;
-          const latLng = [stop.latitude, stop.longitude];
+          const latLng = [stop.location.coordinates[1], stop.location.coordinates[0]];
           
           let markerIcon = stopIcon;
           if (isStart) markerIcon = startIcon;
           if (isEnd) markerIcon = endIcon;
 
           const m = L.marker(latLng, { icon: markerIcon }).addTo(map);
-          let popupContent = `<b>${stop.stopName}</b><br>ETA: ${stop.estimatedTime || '--'}`;
-          if (isStart) popupContent = `<b>Start: ${trip.route.startLocation || stop.stopName}</b><br>Departs: ${stop.estimatedTime || '--'}`;
-          if (isEnd) popupContent = `<b class="text-red-600">Dest: ${trip.route.endLocation || stop.stopName}</b><br>Arrives: ${stop.estimatedTime || '--'}`;
+          let popupContent = `<b>${stop.name}</b><br>ETA: ${stop.estimatedTime || '--'}`;
+          if (isStart) popupContent = `<b>Start: ${trip.route.startPoint || stop.name}</b><br>Departs: ${stop.estimatedTime || '--'}`;
+          if (isEnd) popupContent = `<b class="text-red-600">Dest: ${trip.route.endPoint || stop.name}</b><br>Arrives: ${stop.estimatedTime || '--'}`;
           
           m.bindPopup(popupContent);
           stopMarkers.push(m);
@@ -329,8 +343,8 @@
           : new Date().toLocaleTimeString();
         document.getElementById('topUpdated').textContent = timeStr;
 
-        document.getElementById('routeStart').textContent = trip.route?.startLocation || '--';
-        document.getElementById('routeEnd').textContent = trip.route?.endLocation || '--';
+        document.getElementById('routeStart').textContent = trip.route?.startPoint || '--';
+        document.getElementById('routeEnd').textContent = trip.route?.endPoint || '--';
         document.getElementById('totalDist').textContent = trip.route?.distance || '--';
         document.getElementById('totalTime').textContent = trip.route?.estimatedDuration || '--';
         document.getElementById('totalStops').textContent = routeStopsData.length;
@@ -352,26 +366,39 @@
         let closestIdx = 0;
         let minDistance = Infinity;
         routeStopsData.forEach((stop, idx) => {
-          const dist = calculateDistance(lat, lng, stop.latitude, stop.longitude);
-          if (dist < minDistance) {
-            minDistance = dist;
-            closestIdx = idx;
+          if (stop.location && stop.location.coordinates && stop.location.coordinates.length === 2) {
+            const dist = calculateDistance(lat, lng, stop.location.coordinates[1], stop.location.coordinates[0]);
+            if (dist < minDistance) {
+              minDistance = dist;
+              closestIdx = idx;
+            }
           }
         });
 
-        let currentStopName = trip.metrics?.currentStop || '--';
-        let nextStopName = trip.metrics?.nextStop || '--';
+        // Determine current and next stop from dynamically correctly ordered array
+        let currentStopName = routeStopsData[closestIdx]?.name || '--';
+        let nextStopName = routeStopsData[closestIdx + 1]?.name || 'None';
         
         document.getElementById('currStop').textContent = currentStopName;
         document.getElementById('nxtStop').textContent = nextStopName;
 
-        const remDistText = trip.metrics?.remainingDistance !== undefined ? trip.metrics.remainingDistance + ' km' : '-- km';
+        let remDistText = '-- km';
+        if (lat && lng && routeStopsData.length > 0) {
+          const lastStop = routeStopsData[routeStopsData.length - 1];
+          if (lastStop.location && lastStop.location.coordinates && lastStop.location.coordinates.length === 2) {
+             const dist = calculateDistance(lat, lng, lastStop.location.coordinates[1], lastStop.location.coordinates[0]);
+             remDistText = dist.toFixed(1) + ' km';
+          }
+        }
+        
         document.getElementById('remDist').textContent = remDistText;
 
         renderTimeline(closestIdx);
 
         const speed = trip.currentLocation?.speed || Math.round(Math.random() * (45 - 20) + 20);
-        busMarker.bindPopup(`<b>${trip.bus?.registrationNumber}</b><br>Driver: ${(trip.driver?.user?.name) || ''}<br>Speed: ~${speed} km/h`).update();
+        if (busMarker) {
+          busMarker.bindPopup(`<b>${trip.bus?.registrationNumber}</b><br>Driver: ${(trip.driver?.user?.name) || ''}<br>Speed: ~${speed} km/h`).update();
+        }
       };
 
       const renderTimeline = (closestIdx) => {
@@ -398,6 +425,16 @@
             textClass = 'text-red-600 font-bold';
           }
 
+          let statusText = '';
+          let statusColor = 'text-gray-400';
+          if (currentTripData.session === 'Evening') {
+            if (isPassed) { statusText = 'Completed'; statusColor = 'text-gray-500'; }
+            else if (isCurrent) { statusText = 'Current Stop'; statusColor = 'text-primary-500'; }
+            else { statusText = 'Upcoming'; statusColor = 'text-gray-400'; }
+          } else {
+            statusText = stop.estimatedTime || '';
+          }
+
             const html = `
               <div class="flex items-start h-16" id="stop-item-${idx}">
                 <div class="flex flex-col items-center mr-4 h-full">
@@ -405,8 +442,8 @@
                   ${!isLast ? '<div class="w-0.5 flex-1 bg-gray-200 mt-1 mb-1 relative"><div class="absolute inset-0 flex items-center justify-center text-gray-400 text-[10px]">↓</div></div>' : ''}
                 </div>
                 <div class="pb-4">
-                  <p class="text-sm ${textClass} transition-colors duration-300">${stop.stopName}</p>
-                  ${stop.estimatedTime ? `<p class="text-xs text-gray-400">${stop.estimatedTime}</p>` : ''}
+                  <p class="text-sm ${textClass} transition-colors duration-300">${stop.name}</p>
+                  ${statusText ? `<p class="text-xs ${statusColor} mt-0.5">${statusText}</p>` : ''}
                 </div>
               </div>
             `;
@@ -441,7 +478,7 @@
             headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
           });
           const data = await res.json();
-          if (!data.success) return showMessage('Error loading data.');
+          if (!data.success) return showMessage(data.message || 'Error loading data.');
           
           const status = data.data.status;
           
