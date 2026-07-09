@@ -1,7 +1,7 @@
 // Inject Sidebar and Topbar
 document.addEventListener('DOMContentLoaded', () => {
   const sidebarHTML = `
-    <aside class="w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col z-20">
+    <aside id="layoutSidebar" class="w-64 bg-white border-r border-gray-200 h-screen fixed left-0 top-0 flex flex-col z-30 transform -translate-x-full md:translate-x-0 transition duration-200 ease-in-out">
       <div class="p-6 border-b border-gray-100 flex items-center space-x-3">
         <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center shadow-md">
           <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
@@ -57,7 +57,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const topbarHTML = `
     <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-6 sticky top-0 z-10 w-full">
-      <div class="flex-1">
+      <div class="flex-1 flex items-center">
+        <button id="mobileMenuBtn" class="md:hidden mr-4 text-gray-500 hover:text-gray-700 focus:outline-none">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+        </button>
         <h2 class="text-xl font-semibold text-gray-800" id="topbar-title">Parent Panel</h2>
       </div>
       <div class="flex items-center space-x-4">
@@ -113,4 +116,13 @@ document.addEventListener('DOMContentLoaded', () => {
       link.classList.remove('text-gray-600');
     }
   });
+
+  // Mobile Menu Toggle
+  const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+  const layoutSidebar = document.getElementById('layoutSidebar');
+  if (mobileMenuBtn && layoutSidebar) {
+    mobileMenuBtn.addEventListener('click', () => {
+      layoutSidebar.classList.toggle('-translate-x-full');
+    });
+  }
 });
